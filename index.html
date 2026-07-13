@@ -115,16 +115,19 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .overlay.on{display:flex}
 .card-modal{
   background:#12492f;border:1px solid rgba(232,194,102,.4);border-radius:16px;
-  padding:18px;max-width:420px;width:100%;max-height:86vh;overflow:auto;box-shadow:var(--ombra);
+  padding:22px;max-width:560px;width:100%;max-height:88vh;overflow:auto;box-shadow:var(--ombra);
 }
-.card-modal h2{margin:0 0 10px;font-size:18px;color:var(--oro)}
-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px}
-th,td{padding:6px 4px;text-align:left;border-bottom:1px solid rgba(255,255,255,.12)}
-th{color:#9fd3b5;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px}
-td.n{text-align:right;font-variant-numeric:tabular-nums}
+.card-modal h2{margin:0 0 12px;font-size:24px;color:var(--oro)}
+table{width:100%;border-collapse:collapse;font-size:16px;margin-bottom:14px}
+th,td{padding:9px 6px;text-align:left;border-bottom:1px solid rgba(255,255,255,.12)}
+th{color:#9fd3b5;font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:1px}
+td.n{text-align:right;font-variant-numeric:tabular-nums;font-size:17px}
 .tot{font-weight:800;color:var(--oro)}
-.regole{font-size:12.5px;line-height:1.55;color:#ddefe4}
-.regole li{margin-bottom:5px}
+.tot.big td{font-size:20px;padding:11px 6px}
+tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
+.btn-big{font-size:17px;padding:13px 20px;width:100%;margin-top:4px}
+.regole{font-size:13.5px;line-height:1.6;color:#ddefe4}
+.regole li{margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -269,7 +272,9 @@ function nuovaPartita(){
   ST = {
     tot:{tu:0,cpu:0},
     mazziere:'cpu',       // il primo di mano è chi sta a destra del mazziere = tu
-    fine:false
+    fine:false,
+    fortunaTot:0,
+    smazzate:0
   };
   document.getElementById('pTu').textContent=0;
   document.getElementById('pCpu').textContent=0;
@@ -291,6 +296,8 @@ function nuovaSmazzata(){
     mani:{tu:[],cpu:[]},
     prese:{tu:[],cpu:[]},
     scope:{tu:0,cpu:0},
+    bussate:{tu:0,cpu:0},
+    bussateTxt:{tu:[],cpu:[]},
     ultimaPresa:null,
     turno:(ST.mazziere==='cpu')?'tu':'cpu',
     scelta:null,
@@ -372,6 +379,8 @@ function dichiarazioni(p){
   const somma = vals.reduce((a,b)=>a+b,0);
   if(tris){
     ST.d.scope[p]+=10;
+    ST.d.bussate[p]+=10;
+    ST.d.bussateTxt[p].push('Decino');
     addFortuna(p==='tu'?10:-10, `Decino ${p==='tu'?'tuo':'della CPU'}: 10 scope regalate dalla sorte`);
     mostraBussata(
       p==='tu' ? 'Bussi: Decino!' : 'La CPU bussa: Decino!',
@@ -380,6 +389,8 @@ function dichiarazioni(p){
     toast(`${p==='tu'?'Tris in mano: bussi, è un Decino! Giri':'La CPU bussa: ha un Decino, gira'} 10 scope 😱`);
   } else if(somma<=9){
     ST.d.scope[p]+=3;
+    ST.d.bussate[p]+=3;
+    ST.d.bussateTxt[p].push('Cirulla');
     addFortuna(p==='tu'?3:-3, `Cirulla ${p==='tu'?'tua':'della CPU'} (somma ${somma}): 3 scope`);
     mostraBussata(
       p==='tu' ? 'Bussi: Cirulla!' : 'La CPU bussa: Cirulla!',
@@ -623,44 +634,34 @@ function fineSmazzata(){
   dai('Denari',  a.denari>b.denari ? 'tu' : (b.denari>a.denari?'cpu':null));
   dai('Settebello', a.sette?'tu':(b.sette?'cpu':null));
   dai('Primiera', a.prim>b.prim ? 'tu' : (b.prim>a.prim?'cpu':null));
-  if(a.grande || b.grande) righe.push({nome:'Grande (F+C+R denari)', tu:a.grande, cpu:b.grande});
-  if(a.piccola || b.piccola) righe.push({nome:'Piccola (denari da Asso)', tu:a.piccola, cpu:b.piccola});
 
   ST.tot.tu += pt.tu;
   ST.tot.cpu += pt.cpu;
+  ST.fortunaTot += d.fortuna;
+  ST.smazzate++;
+
+  const scopeNorm = {tu: d.scope.tu - d.bussate.tu, cpu: d.scope.cpu - d.bussate.cpu};
+  const rigaEvid = (nome, vTu, vCpu) =>
+    `<tr class="evid"><td>${nome}</td><td class="n">${vTu||'—'}</td><td class="n">${vCpu||'—'}</td></tr>`;
 
   const html = `
    <h2>Fine smazzata</h2>
    <table>
      <tr><th>Punto</th><th class="n">Tu</th><th class="n">CPU</th></tr>
      ${righe.map(r=>`<tr><td>${r.nome}</td><td class="n">${r.tu||'—'}</td><td class="n">${r.cpu||'—'}</td></tr>`).join('')}
-     <tr><td>Scope (bussate incluse)</td><td class="n">${d.scope.tu||'—'}</td><td class="n">${d.scope.cpu||'—'}</td></tr>
+     <tr><td>Scope</td><td class="n">${scopeNorm.tu||'—'}</td><td class="n">${scopeNorm.cpu||'—'}</td></tr>
+     ${(d.bussate.tu||d.bussate.cpu) ? rigaEvid(`✊ Bussate${d.bussateTxt.tu.length?' ('+d.bussateTxt.tu.join('+')+')':''}${d.bussateTxt.cpu.length?' [CPU: '+d.bussateTxt.cpu.join('+')+']':''}`, d.bussate.tu, d.bussate.cpu) : ''}
+     ${(a.grande||b.grande) ? rigaEvid('👑 GRANDE (F+C+R denari)', a.grande, b.grande) : ''}
+     ${(a.piccola||b.piccola) ? rigaEvid('💎 PICCOLA (denari da Asso)', a.piccola, b.piccola) : ''}
      <tr class="tot"><td>Totale smazzata</td><td class="n">${pt.tu}</td><td class="n">${pt.cpu}</td></tr>
-     <tr class="tot"><td>PARTITA</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
+     <tr class="tot big"><td>PARTITA</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
    </table>
-   <div style="font-size:12px;color:#bfe0cd;margin-bottom:12px">
+   <div style="font-size:13px;color:#bfe0cd;margin-bottom:12px">
      Carte ${a.carte}–${b.carte} · Denari ${a.denari}–${b.denari} · Primiera ${a.prim}–${b.prim}
    </div>`;
 
-  const F = d.fortuna;
-  let sfigaLabel, sfigaEmoji;
-  if(F>=8){ sfigaEmoji='🍀🍀🍀'; sfigaLabel='Fortuna sfacciata: così vincerebbe chiunque'; }
-  else if(F>=4){ sfigaEmoji='🍀'; sfigaLabel='La sorte ti ha sorriso'; }
-  else if(F>-4){ sfigaEmoji='⚖️'; sfigaLabel='Sorte neutrale: è stato tutto merito (o demerito)'; }
-  else if(F>-8){ sfigaEmoji='🐈‍⬛'; sfigaLabel='Ti è girata male, poco da dire'; }
-  else { sfigaEmoji='☠️'; sfigaLabel='Sfiga cosmica: nemmeno Fantozzi'; }
-  // barra: F clampato tra -10 e +10 → posizione 0-100%
-  const pos = Math.round((Math.max(-10, Math.min(10, F)) + 10) * 5);
-  const sfigaHtml = `
-   <div style="margin:4px 0 12px">
-     <div style="font-size:12px;color:#9fd3b5;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Indice di sfiga</div>
-     <div style="position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,#3d3d3d,#777 45%,#777 55%,#e8c266)">
-       <div style="position:absolute;top:-4px;left:calc(${pos}% - 9px);width:18px;height:18px;border-radius:50%;background:#fdfaf3;border:2px solid #12492f"></div>
-     </div>
-     <div style="display:flex;justify-content:space-between;font-size:10px;color:#9fd3b5;margin-top:3px"><span>☠️ sfiga</span><span>🍀 fortuna</span></div>
-     <div style="font-size:13px;margin-top:6px">${sfigaEmoji} <b>${sfigaLabel}</b></div>
-     ${d.fortunaLog.length ? `<div style="font-size:11px;color:#bfe0cd;margin-top:5px;line-height:1.5">${d.fortunaLog.map(e=>`${e.delta>0?'▲':'▼'} ${e.txt}`).join('<br>')}</div>` : `<div style="font-size:11px;color:#bfe0cd;margin-top:5px">Nessun colpo di fortuna in questa mano.</div>`}
-   </div>`;
+  const sfigaHtml = buildSfiga(d.fortuna, 'Indice di sfiga (questa mano)',
+    d.fortunaLog.length ? d.fortunaLog.map(e=>`${e.delta>0?'▲':'▼'} ${e.txt}`).join('<br>') : 'Nessun colpo di fortuna in questa mano.');
 
   const vinceTu = ST.tot.tu>=51, vinceCpu = ST.tot.cpu>=51;
   let coda;
@@ -670,17 +671,40 @@ function fineSmazzata(){
     if(vinceTu && vinceCpu) esito = (ST.tot.tu>ST.tot.cpu) ? 'Hai vinto tu! 🏆' : (ST.tot.cpu>ST.tot.tu ? 'Vince la CPU 🤖' : 'Pareggio: si continua!');
     else esito = vinceTu ? 'Hai vinto tu! 🏆' : 'Vince la CPU 🤖';
     if(esito.startsWith('Pareggio')){
-      coda = `<p class="tot">${esito}</p><button class="btn" onclick="chiudiModal(true)">Continua</button>`;
+      coda = `<p class="tot big" style="font-size:22px">${esito}</p><button class="btn btn-big" onclick="chiudiModal(true)">Continua</button>`;
     } else {
-      coda = `<p class="tot">${esito}</p><button class="btn" onclick="chiudiModal(false);nuovaPartita()">Nuova partita</button>`;
+      const sfigaPartita = buildSfiga(ST.fortunaTot, `Indice di sfiga — intera partita (${ST.smazzate} mani)`,
+        `Somma della fortuna di tutte le mani: ${ST.fortunaTot>0?'+':''}${Math.round(ST.fortunaTot*10)/10}`);
+      coda = `<p class="tot big" style="font-size:24px;margin:10px 0">${esito}</p>` + sfigaPartita +
+        `<button class="btn btn-big" onclick="chiudiModal(false);nuovaPartita()">Nuova partita</button>`;
     }
   } else {
-    coda = `<button class="btn" onclick="chiudiModal(true)">Smazzata successiva</button>`;
+    coda = `<button class="btn btn-big" onclick="chiudiModal(true)">Smazzata successiva</button>`;
   }
 
   document.getElementById('pTu').textContent = ST.tot.tu;
   document.getElementById('pCpu').textContent = ST.tot.cpu;
   apriModal(html + sfigaHtml + coda);
+}
+
+function buildSfiga(F, titolo, dettagli){
+  let label, emoji;
+  if(F>=8){ emoji='🍀🍀🍀'; label='Fortuna sfacciata: così vincerebbe chiunque'; }
+  else if(F>=4){ emoji='🍀'; label='La sorte ti ha sorriso'; }
+  else if(F>-4){ emoji='⚖️'; label='Sorte neutrale: è stato tutto merito (o demerito)'; }
+  else if(F>-8){ emoji='🐈‍⬛'; label='Ti è girata male, poco da dire'; }
+  else { emoji='☠️'; label='Sfiga cosmica: nemmeno Fantozzi'; }
+  const pos = Math.round((Math.max(-10, Math.min(10, F)) + 10) * 5);
+  return `
+   <div style="margin:6px 0 14px">
+     <div style="font-size:13px;color:#9fd3b5;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">${titolo}</div>
+     <div style="position:relative;height:12px;border-radius:6px;background:linear-gradient(90deg,#3d3d3d,#777 45%,#777 55%,#e8c266)">
+       <div style="position:absolute;top:-4px;left:calc(${pos}% - 10px);width:20px;height:20px;border-radius:50%;background:#fdfaf3;border:2px solid #12492f"></div>
+     </div>
+     <div style="display:flex;justify-content:space-between;font-size:11px;color:#9fd3b5;margin-top:3px"><span>☠️ sfiga</span><span>🍀 fortuna</span></div>
+     <div style="font-size:15px;margin-top:7px">${emoji} <b>${label}</b></div>
+     <div style="font-size:12.5px;color:#bfe0cd;margin-top:5px;line-height:1.55">${dettagli}</div>
+   </div>`;
 }
 
 function chiudiModal(prosegui){
