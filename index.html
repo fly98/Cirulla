@@ -227,12 +227,18 @@ function opzioniPresa(c, t){
   return opts;
 }
 
-/* ============ CIRULLE (denari F/C/R nella stessa presa) ============ */
-function bonusCirulla(cards){
-  const set = cards.filter(x=>x.s==='d' && x.v>=8).length;
-  if(set===3) return {p:5, txt:'Cirulla grande! (F+C+R di denari) +5'};
-  if(set===2) return {p:3, txt:'Cirulla piccola (2 figure di denari) +3'};
-  return null;
+/* ============ PICCOLA / GRANDE (valutate a fine mano sulle prese totali) ============ */
+// Grande: Fante+Cavallo+Re di denari catturati durante la mano (non serve nella stessa presa) = 5 punti fissi
+// Piccola: Asso+2+3 di denari = 3 punti base, +1 per ogni carta successiva consecutiva (4,5,6,7) fino a interrompersi
+function valutaPiccolaGrande(prese){
+  const vals = new Set(prese.filter(c=>c.s==='d').map(c=>c.v));
+  const grande = (vals.has(8) && vals.has(9) && vals.has(10)) ? 5 : 0;
+  let piccola = 0;
+  if(vals.has(1) && vals.has(2) && vals.has(3)){
+    piccola = 3;
+    for(let v=4; v<=7; v++){ if(vals.has(v)) piccola++; else break; }
+  }
+  return {grande, piccola};
 }
 
 /* ============ SETUP PARTITA / SMAZZATA ============ */
@@ -262,8 +268,6 @@ function nuovaSmazzata(){
     mani:{tu:[],cpu:[]},
     prese:{tu:[],cpu:[]},
     scope:{tu:0,cpu:0},
-    bonus:{tu:0,cpu:0},
-    bonusTxt:{tu:[],cpu:[]},
     ultimaPresa:null,
     turno:(ST.mazziere==='cpu')?'tu':'cpu',
     scelta:null,
@@ -308,10 +312,10 @@ function dichiarazioni(p){
   const somma = vals.reduce((a,b)=>a+b,0);
   if(tris){
     ST.d.scope[p]+=10;
-    toast(`${p==='tu'?'Tris in mano! Bussi e giri':'La CPU ha un tris: gira'} 10 scope 😱`);
+    toast(`${p==='tu'?'Tris in mano: bussi, è un Decino! Giri':'La CPU bussa: ha un Decino, gira'} 10 scope 😱`);
   } else if(somma<=9){
     ST.d.scope[p]+=3;
-    toast(`${p==='tu'?'Cirulla in mano (somma '+somma+')! Giri':'La CPU ha cirulla in mano: gira'} 3 scope`);
+    toast(`${p==='tu'?`Cirulla in mano (somma ${somma}): bussi! Giri`:'La CPU bussa: ha Cirulla in mano, gira'} 3 scope`);
   }
 }
 
@@ -431,9 +435,6 @@ async function esegui(p, carta, presa){
     d.ultimaPresa = p;
     txt += ` e prend${p==='tu'?'i':'e'} ${presa.cards.map(nomeCarta).join(' + ')} <span class="ok">(${presa.tipo})</span>`;
 
-    const b = bonusCirulla(tutte);
-    if(b){ d.bonus[p]+=b.p; d.bonusTxt[p].push(b.txt); txt += `<br><span class="ok">${b.txt}</span>`; }
-
     const ultimaGiocata = d.mazzo.length===0 && d.mani.tu.length===0 && d.mani.cpu.length===0;
     if(d.tavolo.length===0 && !ultimaGiocata && carta.v!==1){
       d.scope[p]++;
@@ -487,8 +488,9 @@ function turnoCpu(){
     for(const o of opts){
       const tutte=[c,...o.cards];
       let sc = valutaPresa(tutte) + valutaPresa([c])*0.4;
-      const b = bonusCirulla(tutte);
-      if(b) sc += b.p*3;
+      const primaPG = valutaPiccolaGrande(d.prese.cpu);
+      const dopoPG  = valutaPiccolaGrande(d.prese.cpu.concat(tutte));
+      sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
       const restano = d.tavolo.length - o.cards.length;
       const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
       if(restano===0 && !ultima && c.v!==1) sc += 9;   // scopa
@@ -532,10 +534,11 @@ function fineSmazzata(){
       const best = Math.max(0, ...cs.filter(c=>c.s===s.k).map(c=>PRIMIERA[c.v]));
       prim += best;
     }
-    return {carte:cs.length, denari, sette, prim, scope:d.scope[p], bonus:d.bonus[p]};
+    const pg = valutaPiccolaGrande(cs);
+    return {carte:cs.length, denari, sette, prim, scope:d.scope[p], grande:pg.grande, piccola:pg.piccola};
   };
   const a = conta('tu'), b = conta('cpu');
-  let pt = {tu:d.scope.tu + d.bonus.tu, cpu:d.scope.cpu + d.bonus.cpu};
+  let pt = {tu:d.scope.tu + a.grande + a.piccola, cpu:d.scope.cpu + b.grande + b.piccola};
   const righe=[];
   const dai=(nome, chi)=>{ if(chi) pt[chi]++; righe.push({nome, tu:(chi==='tu')?1:0, cpu:(chi==='cpu')?1:0}); };
 
@@ -543,6 +546,8 @@ function fineSmazzata(){
   dai('Denari',  a.denari>b.denari ? 'tu' : (b.denari>a.denari?'cpu':null));
   dai('Settebello', a.sette?'tu':(b.sette?'cpu':null));
   dai('Primiera', a.prim>b.prim ? 'tu' : (b.prim>a.prim?'cpu':null));
+  if(a.grande || b.grande) righe.push({nome:'Grande (F+C+R denari)', tu:a.grande, cpu:b.grande});
+  if(a.piccola || b.piccola) righe.push({nome:'Piccola (denari da Asso)', tu:a.piccola, cpu:b.piccola});
 
   ST.tot.tu += pt.tu;
   ST.tot.cpu += pt.cpu;
@@ -552,8 +557,7 @@ function fineSmazzata(){
    <table>
      <tr><th>Punto</th><th class="n">Tu</th><th class="n">CPU</th></tr>
      ${righe.map(r=>`<tr><td>${r.nome}</td><td class="n">${r.tu||'—'}</td><td class="n">${r.cpu||'—'}</td></tr>`).join('')}
-     <tr><td>Scope</td><td class="n">${d.scope.tu||'—'}</td><td class="n">${d.scope.cpu||'—'}</td></tr>
-     <tr><td>Cirulle</td><td class="n">${d.bonus.tu||'—'}</td><td class="n">${d.bonus.cpu||'—'}</td></tr>
+     <tr><td>Scope (bussate incluse)</td><td class="n">${d.scope.tu||'—'}</td><td class="n">${d.scope.cpu||'—'}</td></tr>
      <tr class="tot"><td>Totale smazzata</td><td class="n">${pt.tu}</td><td class="n">${pt.cpu}</td></tr>
      <tr class="tot"><td>PARTITA</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
    </table>
@@ -723,14 +727,15 @@ const REGOLE = `
 <ul>
 <li><b>Mazzo 40 carte.</b> A=1 … 7=7, Fante=8, Cavallo=9, Re=10.</li>
 <li>3 carte a testa + 4 in tavola. Se in tavola escono <b>2 assi</b>, si rimescola.</li>
-<li>Se le 4 carte in tavola sommano <b>15</b> il mazziere le prende e fa scopa; se sommano <b>30</b>, due scope.</li>
+<li><b>Accuso del mazziere</b>: se le 4 carte in tavola sommano 15 le prende e fa 1 scopa; se sommano 30, 2 scope.</li>
 <li><b>Prese</b>: carta uguale · somma di più carte pari alla tua · <b>presa a 15</b> (la tua + carte in tavola = 15).</li>
 <li><b>L'asso piglia tutto</b> il tavolo (ma non fa scopa).</li>
 <li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
 <li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
-<li><b>Bussate</b>: somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. Tris in mano → <b>10 scope</b>. (Automatiche.)</li>
-<li><b>Cirulla grande</b>: F+C+R di denari nella stessa presa → <b>5 punti</b>. Due delle tre → <b>3 punti</b>.</li>
-<li><b>Punti a fine smazzata</b>: carte, denari, settebello, primiera, + scope + cirulle.</li>
+<li><b>Bussate (accusi automatici a inizio mano)</b>: <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>.</li>
+<li><b>Grande</b>: aver catturato, durante la mano, Fante + Cavallo + Re di denari (anche in prese diverse) → <b>5 punti</b> a fine mano.</li>
+<li><b>Piccola</b>: aver catturato Asso + 2 + 3 di denari → <b>3 punti</b>, +1 per ogni carta successiva consecutiva (4, 5, 6, 7) finché la sequenza non si interrompe.</li>
+<li><b>Punti a fine mano</b>: carte, denari, settebello, primiera, Grande, Piccola, + tutte le scope (incluse quelle delle bussate e dell'accuso del mazziere).</li>
 <li>Vince chi arriva per primo a <b>51</b>.</li>
 </ul>
 </div>
