@@ -294,7 +294,9 @@ function nuovaSmazzata(){
     ultimaPresa:null,
     turno:(ST.mazziere==='cpu')?'tu':'cpu',
     scelta:null,
-    attesa:false
+    attesa:false,
+    fortuna:0,
+    fortunaLog:[]
   };
 
   // Regola mazziere: 4 carte in tavola che sommano 15 (o 30) -> il mazziere le prende
@@ -306,6 +308,7 @@ function nuovaSmazzata(){
     ST.d.prese[m].push(...tavolo.splice(0,4));
     ST.d.scope[m]+=n;
     ST.d.ultimaPresa = m;
+    addFortuna(m==='tu'?n:-n, `Accuso del mazziere (${somma} in tavola): ${n} scop${n>1?'e':'a'} ${m==='tu'?'a te':'alla CPU'}`);
     msgIni = `Le 4 carte in tavola sommavano ${somma}: ${m==='tu'?'le prendi tu':'le prende la CPU'} con ${n} scop${n>1?'e':'a'}!`;
   }
 
@@ -316,13 +319,29 @@ function nuovaSmazzata(){
   else dichiaraSeDeve('tu');
 }
 
+function addFortuna(delta, txt){
+  const d = ST.d;
+  if(!d) return;
+  d.fortuna += delta;
+  d.fortunaLog.push({delta, txt});
+}
+
 function distribuisci(){
   const d = ST.d;
   const primo = (ST.mazziere==='cpu')?'tu':'cpu';
   const secondo = (primo==='tu')?'cpu':'tu';
+  const date = {tu:[], cpu:[]};
   for(let i=0;i<3;i++){
-    if(d.mazzo.length) d.mani[primo].push(d.mazzo.shift());
-    if(d.mazzo.length) d.mani[secondo].push(d.mazzo.shift());
+    if(d.mazzo.length){ const c=d.mazzo.shift(); d.mani[primo].push(c); date[primo].push(c); }
+    if(d.mazzo.length){ const c=d.mazzo.shift(); d.mani[secondo].push(c); date[secondo].push(c); }
+  }
+  // Fortuna della pesca: settebello e assi capitati in mano
+  for(const p of ['tu','cpu']){
+    const segno = (p==='tu')?1:-1;
+    for(const c of date[p]){
+      if(isSettebello(c)) addFortuna(1.5*segno, `Settebello pescato ${p==='tu'?'da te':'dalla CPU'}`);
+      else if(c.v===1) addFortuna(0.5*segno, `Asso pescato ${p==='tu'?'da te':'dalla CPU'}`);
+    }
   }
   // La bussata si dichiara al proprio turno, non alla distribuzione
   d.daDichiarare = {tu:true, cpu:true};
@@ -353,6 +372,7 @@ function dichiarazioni(p){
   const somma = vals.reduce((a,b)=>a+b,0);
   if(tris){
     ST.d.scope[p]+=10;
+    addFortuna(p==='tu'?10:-10, `Decino ${p==='tu'?'tuo':'della CPU'}: 10 scope regalate dalla sorte`);
     mostraBussata(
       p==='tu' ? 'Bussi: Decino!' : 'La CPU bussa: Decino!',
       `Tre ${RANK_NOME[vals[0]].toLowerCase()} in mano → gira 10 scope 😱`
@@ -360,6 +380,7 @@ function dichiarazioni(p){
     toast(`${p==='tu'?'Tris in mano: bussi, è un Decino! Giri':'La CPU bussa: ha un Decino, gira'} 10 scope 😱`);
   } else if(somma<=9){
     ST.d.scope[p]+=3;
+    addFortuna(p==='tu'?3:-3, `Cirulla ${p==='tu'?'tua':'della CPU'} (somma ${somma}): 3 scope`);
     mostraBussata(
       p==='tu' ? 'Bussi: Cirulla!' : 'La CPU bussa: Cirulla!',
       `Somma delle carte in mano ${somma} (≤9) → gira 3 scope`
@@ -621,6 +642,26 @@ function fineSmazzata(){
      Carte ${a.carte}–${b.carte} · Denari ${a.denari}–${b.denari} · Primiera ${a.prim}–${b.prim}
    </div>`;
 
+  const F = d.fortuna;
+  let sfigaLabel, sfigaEmoji;
+  if(F>=8){ sfigaEmoji='🍀🍀🍀'; sfigaLabel='Fortuna sfacciata: così vincerebbe chiunque'; }
+  else if(F>=4){ sfigaEmoji='🍀'; sfigaLabel='La sorte ti ha sorriso'; }
+  else if(F>-4){ sfigaEmoji='⚖️'; sfigaLabel='Sorte neutrale: è stato tutto merito (o demerito)'; }
+  else if(F>-8){ sfigaEmoji='🐈‍⬛'; sfigaLabel='Ti è girata male, poco da dire'; }
+  else { sfigaEmoji='☠️'; sfigaLabel='Sfiga cosmica: nemmeno Fantozzi'; }
+  // barra: F clampato tra -10 e +10 → posizione 0-100%
+  const pos = Math.round((Math.max(-10, Math.min(10, F)) + 10) * 5);
+  const sfigaHtml = `
+   <div style="margin:4px 0 12px">
+     <div style="font-size:12px;color:#9fd3b5;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Indice di sfiga</div>
+     <div style="position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,#3d3d3d,#777 45%,#777 55%,#e8c266)">
+       <div style="position:absolute;top:-4px;left:calc(${pos}% - 9px);width:18px;height:18px;border-radius:50%;background:#fdfaf3;border:2px solid #12492f"></div>
+     </div>
+     <div style="display:flex;justify-content:space-between;font-size:10px;color:#9fd3b5;margin-top:3px"><span>☠️ sfiga</span><span>🍀 fortuna</span></div>
+     <div style="font-size:13px;margin-top:6px">${sfigaEmoji} <b>${sfigaLabel}</b></div>
+     ${d.fortunaLog.length ? `<div style="font-size:11px;color:#bfe0cd;margin-top:5px;line-height:1.5">${d.fortunaLog.map(e=>`${e.delta>0?'▲':'▼'} ${e.txt}`).join('<br>')}</div>` : `<div style="font-size:11px;color:#bfe0cd;margin-top:5px">Nessun colpo di fortuna in questa mano.</div>`}
+   </div>`;
+
   const vinceTu = ST.tot.tu>=51, vinceCpu = ST.tot.cpu>=51;
   let coda;
   if(vinceTu || vinceCpu){
@@ -639,7 +680,7 @@ function fineSmazzata(){
 
   document.getElementById('pTu').textContent = ST.tot.tu;
   document.getElementById('pCpu').textContent = ST.tot.cpu;
-  apriModal(html + coda);
+  apriModal(html + sfigaHtml + coda);
 }
 
 function chiudiModal(prosegui){
