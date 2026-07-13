@@ -96,6 +96,18 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 
 .footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
 
+.bussata{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);
+  background:#12492f;border:2px solid var(--oro);border-radius:16px;
+  padding:22px 30px;z-index:70;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6);
+  opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;
+  max-width:80vw;
+}
+.bussata.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.bussata .pugno{font-size:44px;line-height:1;margin-bottom:8px}
+.bussata .titolo{font-size:20px;font-weight:800;color:var(--oro);letter-spacing:1px;margin-bottom:4px}
+.bussata .dett{font-size:14px;color:#ddefe4}
+
 .overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
   align-items:center;justify-content:center;padding:18px;z-index:50;
@@ -152,6 +164,12 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 
 <div class="overlay" id="overlay">
   <div class="card-modal" id="modalBody"></div>
+</div>
+
+<div class="bussata" id="bussata">
+  <div class="pugno">✊</div>
+  <div class="titolo" id="busTitolo"></div>
+  <div class="dett" id="busDett"></div>
 </div>
 
 <script>
@@ -304,6 +322,16 @@ function distribuisci(){
   for(const p of ['tu','cpu']) dichiarazioni(p);
 }
 
+let busTimer = null;
+function mostraBussata(titolo, dettaglio){
+  const el = document.getElementById('bussata');
+  document.getElementById('busTitolo').textContent = titolo;
+  document.getElementById('busDett').textContent = dettaglio;
+  el.classList.add('on');
+  clearTimeout(busTimer);
+  busTimer = setTimeout(()=> el.classList.remove('on'), 2800);
+}
+
 function dichiarazioni(p){
   const m = ST.d.mani[p];
   if(m.length!==3) return;
@@ -312,9 +340,17 @@ function dichiarazioni(p){
   const somma = vals.reduce((a,b)=>a+b,0);
   if(tris){
     ST.d.scope[p]+=10;
+    mostraBussata(
+      p==='tu' ? 'Bussi: Decino!' : 'La CPU bussa: Decino!',
+      `Tre ${RANK_NOME[vals[0]].toLowerCase()} in mano → gira 10 scope 😱`
+    );
     toast(`${p==='tu'?'Tris in mano: bussi, è un Decino! Giri':'La CPU bussa: ha un Decino, gira'} 10 scope 😱`);
   } else if(somma<=9){
     ST.d.scope[p]+=3;
+    mostraBussata(
+      p==='tu' ? 'Bussi: Cirulla!' : 'La CPU bussa: Cirulla!',
+      `Somma delle carte in mano ${somma} (≤9) → gira 3 scope`
+    );
     toast(`${p==='tu'?`Cirulla in mano (somma ${somma}): bussi! Giri`:'La CPU bussa: ha Cirulla in mano, gira'} 3 scope`);
   }
 }
