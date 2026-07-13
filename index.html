@@ -59,28 +59,18 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 
 .carta{
   width:74px;height:110px;border-radius:10px;background:var(--carta);color:var(--testo);
-  box-shadow:var(--ombra);position:relative;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--ombra);position:relative;cursor:pointer;overflow:hidden;
   border:1px solid #d8cfb8;transition:transform .12s, box-shadow .12s;
   user-select:none;
 }
-.idx{position:absolute;font-size:17px;font-weight:800;line-height:1;font-family:Georgia,'Times New Roman',serif}
-.idx.tl{top:5px;left:6px}
-.idx.br{bottom:5px;right:6px;transform:rotate(180deg)}
-.suit-wrap{width:36px;height:36px}
-.suit-ico{width:100%;height:100%;display:block}
+.carta .face{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 .carta.small{width:60px;height:89px}
-.carta.small .idx{font-size:13px}
-.carta.small .idx.tl{top:3px;left:4px}
-.carta.small .idx.br{bottom:3px;right:4px}
-.carta.small .suit-wrap{width:26px;height:26px}
-.carta.d{color:#b9862a}.carta.c{color:#b8382f}.carta.sp{color:#233752}.carta.b{color:#2c7a3e}
 .mano .carta:active{transform:translateY(-6px)}
 .carta.sel{transform:translateY(-10px);box-shadow:0 0 0 3px var(--oro),var(--ombra)}
 .carta.evid{box-shadow:0 0 0 3px #59d98a,var(--ombra)}
 .carta.gioca{animation:pulse .8s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
-.settebello::after{content:"★";position:absolute;top:3px;right:5px;font-size:10px;color:var(--oro)}
+.settebello::after{content:"★";position:absolute;top:3px;right:5px;font-size:11px;color:var(--oro);text-shadow:0 0 3px #000,0 0 3px #000;z-index:2}
 
 .msg{
   min-height:34px;text-align:center;font-size:13px;padding:7px 10px;
@@ -184,15 +174,6 @@ function nuovoMazzo(){
 const semeOf = k => SEMI.find(x=>x.k===k);
 const nomeCarta = c => `${RANK_NOME[c.v]} di ${semeOf(c.s).nome}`;
 const isSettebello = c => c.v===7 && c.s==='d';
-
-function svgSuit(k){
-  switch(k){
-    case 'd': return '<svg viewBox="0 0 24 24" class="suit-ico"><circle cx="12" cy="12" r="9.2" fill="currentColor"/><circle cx="12" cy="12" r="5.4" fill="none" stroke="#fdfaf3" stroke-width="1.2" opacity=".55"/><circle cx="12" cy="12" r="2" fill="#fdfaf3" opacity=".6"/></svg>';
-    case 'c': return '<svg viewBox="0 0 24 24" class="suit-ico"><path d="M5 3h14l-1.3 6.6A5.8 5.8 0 0 1 13 14.2V18h3v2H8v-2h3v-3.8A5.8 5.8 0 0 1 6.3 9.6L5 3Z" fill="currentColor"/></svg>';
-    case 's': return '<svg viewBox="0 0 24 24" class="suit-ico"><path d="M11 1h2v12.2h-2z" fill="currentColor"/><path d="M5.3 12h13.4v2H5.3z" fill="currentColor"/><path d="M10.3 15h3.4v6.1a1.7 1.7 0 0 1-3.4 0z" fill="currentColor"/></svg>';
-    case 'b': return '<svg viewBox="0 0 24 24" class="suit-ico"><rect x="10.4" y="1.8" width="3.2" height="20.4" rx="1.6" transform="rotate(22 12 12)" fill="currentColor"/><circle cx="7.7" cy="5.3" r="1.6" fill="currentColor"/><circle cx="16.3" cy="18.7" r="1.6" fill="currentColor"/></svg>';
-  }
-}
 
 /* ============ PRESE ============ */
 // Tutti i sottoinsiemi del tavolo (max 10-12 carte -> ok)
@@ -509,7 +490,7 @@ function cartaEl(c, cls){
   const d = document.createElement('div');
   d.className = 'carta ' + s.cls + (cls?(' '+cls):'') + (isSettebello(c)?' settebello':'');
   d.title = nomeCarta(c);
-  d.innerHTML = `<div class="idx tl">${RANK_LABEL[c.v]}</div><div class="suit-wrap">${svgSuit(c.s)}</div><div class="idx br">${RANK_LABEL[c.v]}</div>`;
+  d.innerHTML = `<img class="face" src="cards/${c.s}${c.v}.jpg" alt="${nomeCarta(c)}" draggable="false">`;
   d.dataset.id = c.id;
   return d;
 }
