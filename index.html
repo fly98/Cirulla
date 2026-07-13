@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b4d2c">
+<title>Cirulla</title>
+<style>
+:root{
+  --feltro:#0e6b3d;
+  --feltro-scuro:#0a4a2a;
+  --oro:#e8c266;
+  --carta:#fdfaf3;
+  --testo:#1c2b22;
+  --ombra:0 4px 10px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  background:radial-gradient(circle at 50% 30%, var(--feltro), var(--feltro-scuro) 75%);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:#fff;
+  display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) 8px env(safe-area-inset-bottom);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 4px;gap:8px;
+}
+h1{font-size:17px;margin:0;letter-spacing:2px;font-weight:700;color:var(--oro)}
+h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weight:400}
+.punti{display:flex;gap:6px;font-size:11px}
+.chip{background:rgba(0,0,0,.28);border-radius:10px;padding:5px 9px;text-align:center;line-height:1.25}
+.chip b{display:block;font-size:15px;color:var(--oro)}
+.btn{
+  background:var(--oro);color:#2b2110;border:0;border-radius:9px;
+  padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--ombra);
+}
+.btn.ghost{background:rgba(255,255,255,.14);color:#fff;box-shadow:none;font-weight:600}
+
+.zona{margin:4px 0}
+.etichetta{font-size:10px;letter-spacing:1.5px;color:#9fd3b5;text-transform:uppercase;margin:2px 4px}
+.cpu-hand{display:flex;gap:5px;justify-content:center;min-height:52px;align-items:center}
+.retro{
+  width:36px;height:52px;border-radius:6px;
+  background:repeating-linear-gradient(45deg,#8d2b2b,#8d2b2b 4px,#a53535 4px,#a53535 8px);
+  border:2px solid #f0e0c0;box-shadow:var(--ombra);
+}
+.tavolo{
+  display:flex;flex-wrap:wrap;gap:7px;justify-content:center;align-items:center;
+  min-height:118px;padding:10px 6px;
+  background:rgba(0,0,0,.14);border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+}
+.mano{display:flex;gap:9px;justify-content:center;min-height:104px;align-items:flex-end;padding:6px 0 2px}
+
+.carta{
+  width:58px;height:86px;border-radius:8px;background:var(--carta);color:var(--testo);
+  box-shadow:var(--ombra);position:relative;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border:1px solid #d8cfb8;transition:transform .12s, box-shadow .12s;
+  user-select:none;
+}
+.carta .r{font-size:22px;font-weight:800;line-height:1}
+.carta .s{font-size:20px;line-height:1.1;margin-top:2px}
+.carta.small{width:48px;height:71px}
+.carta.small .r{font-size:18px}
+.carta.small .s{font-size:16px}
+.carta.d{color:#b8860b}.carta.c{color:#c0392b}.carta.s7{color:#1f5fa8}.carta.b{color:#2c7a3e}
+.mano .carta:active{transform:translateY(-6px)}
+.carta.sel{transform:translateY(-10px);box-shadow:0 0 0 3px var(--oro),var(--ombra)}
+.carta.evid{box-shadow:0 0 0 3px #59d98a,var(--ombra)}
+.carta.gioca{animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
+.settebello::after{content:"★";position:absolute;top:3px;right:5px;font-size:10px;color:var(--oro)}
+
+.msg{
+  min-height:34px;text-align:center;font-size:13px;padding:7px 10px;
+  background:rgba(0,0,0,.25);border-radius:10px;margin:4px 0;line-height:1.35;
+}
+.msg .ok{color:#8ff0b0;font-weight:700}
+.msg .no{color:#ffb3a7;font-weight:700}
+
+.scelte{display:flex;flex-direction:column;gap:6px;margin:6px 0}
+.scelta{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);
+  border-radius:9px;padding:9px 11px;font-size:13px;cursor:pointer;display:flex;
+  justify-content:space-between;align-items:center;gap:8px;
+}
+.scelta:active{background:rgba(232,194,102,.25)}
+.scelta .tag{font-size:10px;color:var(--oro);letter-spacing:1px;white-space:nowrap}
+
+.footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
+
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
+  align-items:center;justify-content:center;padding:18px;z-index:50;
+}
+.overlay.on{display:flex}
+.card-modal{
+  background:#12492f;border:1px solid rgba(232,194,102,.4);border-radius:16px;
+  padding:18px;max-width:420px;width:100%;max-height:86vh;overflow:auto;box-shadow:var(--ombra);
+}
+.card-modal h2{margin:0 0 10px;font-size:18px;color:var(--oro)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px}
+th,td{padding:6px 4px;text-align:left;border-bottom:1px solid rgba(255,255,255,.12)}
+th{color:#9fd3b5;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.tot{font-weight:800;color:var(--oro)}
+.regole{font-size:12.5px;line-height:1.55;color:#ddefe4}
+.regole li{margin-bottom:5px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CIRULLA<small>ligure · a 51</small></h1>
+  <div class="punti">
+    <div class="chip">TU<b id="pTu">0</b></div>
+    <div class="chip">CPU<b id="pCpu">0</b></div>
+    <div class="chip">MAZZO<b id="pMazzo">40</b></div>
+  </div>
+  <button class="btn ghost" id="btnRegole">?</button>
+</header>
+
+<div class="zona">
+  <div class="etichetta">CPU · <span id="cpuInfo">—</span></div>
+  <div class="cpu-hand" id="cpuHand"></div>
+</div>
+
+<div class="zona">
+  <div class="etichetta">Tavolo</div>
+  <div class="tavolo" id="tavolo"></div>
+</div>
+
+<div class="msg" id="msg">Tocca <b>Nuova partita</b> per cominciare.</div>
+<div class="scelte" id="scelte"></div>
+
+<div class="zona">
+  <div class="etichetta">La tua mano · <span id="tuInfo">—</span></div>
+  <div class="mano" id="mano"></div>
+</div>
+
+<div class="footer">
+  <span id="statoPrese">Prese: tu 0 · cpu 0</span>
+  <button class="btn" id="btnNuova">Nuova partita</button>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card-modal" id="modalBody"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ============ MODELLO ============ */
+const SEMI = [
+  {k:'d', nome:'Denari',  sym:'◆', cls:'d'},
+  {k:'c', nome:'Coppe',   sym:'♥', cls:'c'},
+  {k:'s', nome:'Spade',   sym:'♠', cls:'s7'},
+  {k:'b', nome:'Bastoni', sym:'♣', cls:'b'}
+];
+const RANK_LABEL = {1:'A',2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'F',9:'C',10:'R'};
+const PRIMIERA = {7:21,6:18,1:16,5:15,4:14,3:13,2:12,8:10,9:10,10:10};
+
+let ST = null;
+
+function nuovoMazzo(){
+  const m = [];
+  let id = 0;
+  for(const s of SEMI) for(let v=1; v<=10; v++) m.push({id:id++, v, s:s.k});
+  for(let i=m.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [m[i],m[j]]=[m[j],m[i]]; }
+  return m;
+}
+const semeOf = k => SEMI.find(x=>x.k===k);
+const nomeCarta = c => RANK_LABEL[c.v] + semeOf(c.s).sym;
+const isSettebello = c => c.v===7 && c.s==='d';
+
+/* ============ PRESE ============ */
+// Tutti i sottoinsiemi del tavolo (max 10-12 carte -> ok)
+function sottoinsiemi(arr){
+  const out=[];
+  const n=arr.length;
+  for(let mask=1; mask<(1<<n); mask++){
+    const s=[];
+    for(let i=0;i<n;i++) if(mask&(1<<i)) s.push(arr[i]);
+    out.push(s);
+  }
+  return out;
+}
+
+// Opzioni di presa per la carta c sul tavolo t
+function opzioniPresa(c, t){
+  const opts=[];
+  const key = s => s.map(x=>x.id).sort((a,b)=>a-b).join(',');
+  const visti = new Set();
+  const push = (cards, tipo) => {
+    const k = key(cards);
+    if(visti.has(k)) return;
+    visti.add(k);
+    opts.push({cards, tipo});
+  };
+
+  if(t.length===0) return opts;
+
+  // Asso piglia tutto
+  if(c.v===1){
+    push(t.slice(), 'asso piglia tutto');
+    return opts;
+  }
+
+  const subs = sottoinsiemi(t);
+  for(const s of subs){
+    const somma = s.reduce((a,x)=>a+x.v,0);
+    if(s.length===1 && s[0].v===c.v) push(s,'uguale');
+    else if(s.length>1 && somma===c.v) push(s,'somma');
+  }
+  for(const s of subs){
+    const somma = s.reduce((a,x)=>a+x.v,0);
+    if(somma + c.v === 15) push(s,'a 15');
+  }
+  return opts;
+}
+
+/* ============ CIRULLE (denari F/C/R nella stessa presa) ============ */
+function bonusCirulla(cards){
+  const set = cards.filter(x=>x.s==='d' && x.v>=8).length;
+  if(set===3) return {p:5, txt:'Cirulla grande! (F+C+R di denari) +5'};
+  if(set===2) return {p:3, txt:'Cirulla piccola (2 figure di denari) +3'};
+  return null;
+}
+
+/* ============ SETUP PARTITA / SMAZZATA ============ */
+function nuovaPartita(){
+  ST = {
+    tot:{tu:0,cpu:0},
+    mazziere:'cpu',       // il primo di mano è chi sta a destra del mazziere = tu
+    fine:false
+  };
+  document.getElementById('pTu').textContent=0;
+  document.getElementById('pCpu').textContent=0;
+  nuovaSmazzata();
+}
+
+function nuovaSmazzata(){
+  let mazzo, tavolo;
+  let tentativi=0;
+  do{
+    mazzo = nuovoMazzo();
+    tavolo = mazzo.splice(0,4);
+    tentativi++;
+  } while(tavolo.filter(c=>c.v===1).length>=2 && tentativi<50); // 2 assi in tavola -> va a monte
+
+  ST.d = {
+    mazzo, tavolo,
+    mani:{tu:[],cpu:[]},
+    prese:{tu:[],cpu:[]},
+    scope:{tu:0,cpu:0},
+    bonus:{tu:0,cpu:0},
+    bonusTxt:{tu:[],cpu:[]},
+    ultimaPresa:null,
+    turno:(ST.mazziere==='cpu')?'tu':'cpu',
+    scelta:null,
+    attesa:false
+  };
+
+  // Regola mazziere: 4 carte in tavola che sommano 15 (o 30) -> il mazziere le prende
+  const somma = tavolo.reduce((a,c)=>a+c.v,0);
+  let msgIni = '';
+  if(somma===15 || somma===30){
+    const n = (somma===30)?2:1;
+    const m = ST.mazziere;
+    ST.d.prese[m].push(...tavolo.splice(0,4));
+    ST.d.scope[m]+=n;
+    ST.d.ultimaPresa = m;
+    msgIni = `Le 4 carte in tavola sommavano ${somma}: ${m==='tu'?'le prendi tu':'le prende la CPU'} con ${n} scop${n>1?'e':'a'}!`;
+  }
+
+  distribuisci();
+  render();
+  setMsg(msgIni ? msgIni+'<br>Tocca una carta per giocarla.' : 'Tocca una carta della tua mano.');
+  if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
+}
+
+function distribuisci(){
+  const d = ST.d;
+  const primo = (ST.mazziere==='cpu')?'tu':'cpu';
+  const secondo = (primo==='tu')?'cpu':'tu';
+  for(let i=0;i<3;i++){
+    if(d.mazzo.length) d.mani[primo].push(d.mazzo.shift());
+    if(d.mazzo.length) d.mani[secondo].push(d.mazzo.shift());
+  }
+  // Bussate (dichiarazioni) a inizio mano
+  for(const p of ['tu','cpu']) dichiarazioni(p);
+}
+
+function dichiarazioni(p){
+  const m = ST.d.mani[p];
+  if(m.length!==3) return;
+  const vals = m.map(c=>c.v);
+  const tris = vals[0]===vals[1] && vals[1]===vals[2];
+  const somma = vals.reduce((a,b)=>a+b,0);
+  if(tris){
+    ST.d.scope[p]+=10;
+    toast(`${p==='tu'?'Tris in mano! Bussi e giri':'La CPU ha un tris: gira'} 10 scope 😱`);
+  } else if(somma<=9){
+    ST.d.scope[p]+=3;
+    toast(`${p==='tu'?'Cirulla in mano (somma '+somma+')! Giri':'La CPU ha cirulla in mano: gira'} 3 scope`);
+  }
+}
+
+/* ============ GIOCATA ============ */
+function esegui(p, carta, presa){
+  const d = ST.d;
+  d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
+  let txt = `${p==='tu'?'Giochi':'CPU gioca'} ${nomeCarta(carta)}`;
+
+  if(presa && presa.cards.length){
+    const ids = new Set(presa.cards.map(c=>c.id));
+    d.tavolo = d.tavolo.filter(c=>!ids.has(c.id));
+    const tutte = [carta, ...presa.cards];
+    d.prese[p].push(...tutte);
+    d.ultimaPresa = p;
+    txt += ` e prend${p==='tu'?'i':'e'} ${presa.cards.map(nomeCarta).join(' + ')} <span class="ok">(${presa.tipo})</span>`;
+
+    const b = bonusCirulla(tutte);
+    if(b){ d.bonus[p]+=b.p; d.bonusTxt[p].push(b.txt); txt += `<br><span class="ok">${b.txt}</span>`; }
+
+    const ultimaGiocata = d.mazzo.length===0 && d.mani.tu.length===0 && d.mani.cpu.length===0;
+    if(d.tavolo.length===0 && !ultimaGiocata && carta.v!==1){
+      d.scope[p]++;
+      txt += ` <span class="ok">SCOPA!</span>`;
+    }
+  } else {
+    d.tavolo.push(carta);
+    txt += ` (nessuna presa)`;
+  }
+
+  setMsg(txt);
+  d.turno = (p==='tu')?'cpu':'tu';
+  render();
+
+  // Fine mano da 3 -> ridistribuisci
+  if(d.mani.tu.length===0 && d.mani.cpu.length===0){
+    if(d.mazzo.length>0){
+      setTimeout(()=>{ distribuisci(); render(); if(d.turno==='cpu') setTimeout(turnoCpu,800); }, 700);
+      return;
+    } else {
+      setTimeout(fineSmazzata, 900);
+      return;
+    }
+  }
+  if(d.turno==='cpu') setTimeout(turnoCpu, 850);
+}
+
+/* ============ IA CPU ============ */
+function valutaPresa(cards){
+  let v = cards.length*1.0;
+  for(const c of cards){
+    if(isSettebello(c)) v += 12;
+    if(c.s==='d') v += 1.6;
+    if(c.v===7) v += 1.4;
+    if(c.v===6) v += 0.8;
+    if(c.v===1) v += 0.4;
+  }
+  return v;
+}
+
+function turnoCpu(){
+  const d = ST.d;
+  if(!d || d.turno!=='cpu' || ST.fine) return;
+  const mano = d.mani.cpu;
+  if(!mano.length) return;
+
+  let best=null;
+  for(const c of mano){
+    const opts = opzioniPresa(c, d.tavolo);
+    for(const o of opts){
+      const tutte=[c,...o.cards];
+      let sc = valutaPresa(tutte) + valutaPresa([c])*0.4;
+      const b = bonusCirulla(tutte);
+      if(b) sc += b.p*3;
+      const restano = d.tavolo.length - o.cards.length;
+      const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
+      if(restano===0 && !ultima && c.v!==1) sc += 9;   // scopa
+      if(c.v===1 && restano===0) sc += d.tavolo.length*0.8; // asso piglia tutto
+      if(!best || sc>best.sc) best={sc, carta:c, presa:o};
+    }
+  }
+
+  if(best){ esegui('cpu', best.carta, best.presa); return; }
+
+  // Nessuna presa: scarta la carta meno pericolosa/preziosa
+  let peggio=null;
+  for(const c of mano){
+    let rischio = 0;
+    // quanto è pericoloso lasciarla (l'avversario può prenderla facilmente?)
+    rischio += (15 - c.v) * 0.05;                 // carte alte lasciano prese a 15 più difficili
+    rischio += isSettebello(c) ? 20 : 0;
+    rischio += (c.s==='d') ? 2.2 : 0;
+    rischio += (c.v===7) ? 1.8 : 0;
+    rischio += (c.v===6) ? 1.0 : 0;
+    const nuovoTot = d.tavolo.reduce((a,x)=>a+x.v,0) + c.v;
+    if(nuovoTot===15) rischio += 3;               // regala una presa a 15 secca
+    if(!peggio || rischio<peggio.r) peggio={r:rischio, carta:c};
+  }
+  esegui('cpu', peggio.carta, null);
+}
+
+/* ============ FINE SMAZZATA / PUNTEGGIO ============ */
+function fineSmazzata(){
+  const d = ST.d;
+  if(d.tavolo.length && d.ultimaPresa){
+    d.prese[d.ultimaPresa].push(...d.tavolo);
+    d.tavolo=[];
+  }
+  const conta = p => {
+    const cs = d.prese[p];
+    const denari = cs.filter(c=>c.s==='d').length;
+    const sette = cs.some(isSettebello);
+    let prim=0;
+    for(const s of SEMI){
+      const best = Math.max(0, ...cs.filter(c=>c.s===s.k).map(c=>PRIMIERA[c.v]));
+      prim += best;
+    }
+    return {carte:cs.length, denari, sette, prim, scope:d.scope[p], bonus:d.bonus[p]};
+  };
+  const a = conta('tu'), b = conta('cpu');
+  let pt = {tu:d.scope.tu + d.bonus.tu, cpu:d.scope.cpu + d.bonus.cpu};
+  const righe=[];
+  const dai=(nome, chi)=>{ if(chi) pt[chi]++; righe.push({nome, tu:(chi==='tu')?1:0, cpu:(chi==='cpu')?1:0}); };
+
+  dai('Carte',   a.carte>b.carte ? 'tu' : (b.carte>a.carte?'cpu':null));
+  dai('Denari',  a.denari>b.denari ? 'tu' : (b.denari>a.denari?'cpu':null));
+  dai('Settebello', a.sette?'tu':(b.sette?'cpu':null));
+  dai('Primiera', a.prim>b.prim ? 'tu' : (b.prim>a.prim?'cpu':null));
+
+  ST.tot.tu += pt.tu;
+  ST.tot.cpu += pt.cpu;
+
+  const html = `
+   <h2>Fine smazzata</h2>
+   <table>
+     <tr><th>Punto</th><th class="n">Tu</th><th class="n">CPU</th></tr>
+     ${righe.map(r=>`<tr><td>${r.nome}</td><td class="n">${r.tu||'—'}</td><td class="n">${r.cpu||'—'}</td></tr>`).join('')}
+     <tr><td>Scope</td><td class="n">${d.scope.tu||'—'}</td><td class="n">${d.scope.cpu||'—'}</td></tr>
+     <tr><td>Cirulle</td><td class="n">${d.bonus.tu||'—'}</td><td class="n">${d.bonus.cpu||'—'}</td></tr>
+     <tr class="tot"><td>Totale smazzata</td><td class="n">${pt.tu}</td><td class="n">${pt.cpu}</td></tr>
+     <tr class="tot"><td>PARTITA</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
+   </table>
+   <div style="font-size:12px;color:#bfe0cd;margin-bottom:12px">
+     Carte ${a.carte}–${b.carte} · Denari ${a.denari}–${b.denari} · Primiera ${a.prim}–${b.prim}
+   </div>`;
+
+  const vinceTu = ST.tot.tu>=51, vinceCpu = ST.tot.cpu>=51;
+  let coda;
+  if(vinceTu || vinceCpu){
+    ST.fine=true;
+    let esito;
+    if(vinceTu && vinceCpu) esito = (ST.tot.tu>ST.tot.cpu) ? 'Hai vinto tu! 🏆' : (ST.tot.cpu>ST.tot.tu ? 'Vince la CPU 🤖' : 'Pareggio: si continua!');
+    else esito = vinceTu ? 'Hai vinto tu! 🏆' : 'Vince la CPU 🤖';
+    if(esito.startsWith('Pareggio')){
+      coda = `<p class="tot">${esito}</p><button class="btn" onclick="chiudiModal(true)">Continua</button>`;
+    } else {
+      coda = `<p class="tot">${esito}</p><button class="btn" onclick="chiudiModal(false);nuovaPartita()">Nuova partita</button>`;
+    }
+  } else {
+    coda = `<button class="btn" onclick="chiudiModal(true)">Smazzata successiva</button>`;
+  }
+
+  document.getElementById('pTu').textContent = ST.tot.tu;
+  document.getElementById('pCpu').textContent = ST.tot.cpu;
+  apriModal(html + coda);
+}
+
+function chiudiModal(prosegui){
+  document.getElementById('overlay').classList.remove('on');
+  if(prosegui && !ST.fine){
+    ST.mazziere = (ST.mazziere==='tu')?'cpu':'tu';
+    nuovaSmazzata();
+  }
+}
+function apriModal(html){
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('overlay').classList.add('on');
+}
+
+/* ============ RENDER ============ */
+function cartaEl(c, cls){
+  const s = semeOf(c.s);
+  const d = document.createElement('div');
+  d.className = 'carta ' + s.cls + (cls?(' '+cls):'') + (isSettebello(c)?' settebello':'');
+  d.innerHTML = `<div class="r">${RANK_LABEL[c.v]}</div><div class="s">${s.sym}</div>`;
+  d.dataset.id = c.id;
+  return d;
+}
+
+function render(){
+  const d = ST.d;
+  document.getElementById('pMazzo').textContent = d.mazzo.length;
+  document.getElementById('statoPrese').textContent =
+    `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length} — Scope: ${d.scope.tu}–${d.scope.cpu}`;
+  document.getElementById('cpuInfo').textContent = `${d.mani.cpu.length} carte` + (d.turno==='cpu'?' · tocca a lei':'');
+  document.getElementById('tuInfo').textContent  = (d.turno==='tu')?'tocca a te':'attendi…';
+
+  const ch = document.getElementById('cpuHand');
+  ch.innerHTML='';
+  d.mani.cpu.forEach(()=>{ const r=document.createElement('div'); r.className='retro'; ch.appendChild(r); });
+
+  const tv = document.getElementById('tavolo');
+  tv.innerHTML='';
+  const evid = new Set((d.scelta && d.scelta.evid) ? d.scelta.evid : []);
+  d.tavolo.forEach(c=>{
+    const e = cartaEl(c,'small' + (evid.has(c.id)?' evid':''));
+    tv.appendChild(e);
+  });
+  if(!d.tavolo.length){
+    const p=document.createElement('div');
+    p.style.cssText='font-size:12px;color:#9fd3b5';
+    p.textContent='tavolo vuoto';
+    tv.appendChild(p);
+  }
+
+  const mn = document.getElementById('mano');
+  mn.innerHTML='';
+  d.mani.tu.forEach(c=>{
+    const sel = d.scelta && d.scelta.carta.id===c.id;
+    const e = cartaEl(c, (d.turno==='tu'?'gioca ':'') + (sel?'sel':''));
+    e.onclick = ()=> clickCarta(c);
+    mn.appendChild(e);
+  });
+}
+
+function setMsg(html){ document.getElementById('msg').innerHTML = html; }
+function toast(t){ setMsg(`<span class="ok">${t}</span>`); }
+
+/* ============ INTERAZIONE ============ */
+function clickCarta(c){
+  const d = ST.d;
+  if(ST.fine || d.turno!=='tu') return;
+  const opts = opzioniPresa(c, d.tavolo);
+  const box = document.getElementById('scelte');
+  box.innerHTML='';
+
+  if(opts.length===0){
+    d.scelta=null;
+    esegui('tu', c, null);
+    return;
+  }
+  if(opts.length===1){
+    d.scelta=null;
+    esegui('tu', c, opts[0]);
+    return;
+  }
+
+  d.scelta = {carta:c, evid:[]};
+  render();
+  setMsg(`Con <b>${nomeCarta(c)}</b> puoi prendere in ${opts.length} modi. Scegli:`);
+  opts.sort((a,b)=>b.cards.length-a.cards.length);
+  opts.forEach(o=>{
+    const b = document.createElement('div');
+    b.className='scelta';
+    b.innerHTML = `<span>${o.cards.map(nomeCarta).join(' + ')}</span><span class="tag">${o.tipo.toUpperCase()}</span>`;
+    b.onmouseenter = ()=>{ d.scelta.evid = o.cards.map(x=>x.id); render(); };
+    b.ontouchstart = ()=>{ d.scelta.evid = o.cards.map(x=>x.id); render(); };
+    b.onclick = ()=>{ box.innerHTML=''; d.scelta=null; esegui('tu', c, o); };
+    box.appendChild(b);
+  });
+  const ann = document.createElement('div');
+  ann.className='scelta';
+  ann.style.opacity='.75';
+  ann.innerHTML = `<span>Annulla</span><span class="tag">↩︎</span>`;
+  ann.onclick = ()=>{ box.innerHTML=''; d.scelta=null; render(); setMsg('Tocca una carta della tua mano.'); };
+  box.appendChild(ann);
+}
+
+/* ============ REGOLE ============ */
+const REGOLE = `
+<h2>Regole (Cirulla ligure)</h2>
+<div class="regole">
+<ul>
+<li><b>Mazzo 40 carte.</b> A=1 … 7=7, Fante=8, Cavallo=9, Re=10.</li>
+<li>3 carte a testa + 4 in tavola. Se in tavola escono <b>2 assi</b>, si rimescola.</li>
+<li>Se le 4 carte in tavola sommano <b>15</b> il mazziere le prende e fa scopa; se sommano <b>30</b>, due scope.</li>
+<li><b>Prese</b>: carta uguale · somma di più carte pari alla tua · <b>presa a 15</b> (la tua + carte in tavola = 15).</li>
+<li><b>L'asso piglia tutto</b> il tavolo (ma non fa scopa).</li>
+<li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
+<li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
+<li><b>Bussate</b>: somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. Tris in mano → <b>10 scope</b>. (Automatiche.)</li>
+<li><b>Cirulla grande</b>: F+C+R di denari nella stessa presa → <b>5 punti</b>. Due delle tre → <b>3 punti</b>.</li>
+<li><b>Punti a fine smazzata</b>: carte, denari, settebello, primiera, + scope + cirulle.</li>
+<li>Vince chi arriva per primo a <b>51</b>.</li>
+</ul>
+</div>
+<button class="btn" onclick="document.getElementById('overlay').classList.remove('on')">Chiudi</button>`;
+
+document.getElementById('btnRegole').onclick = ()=> apriModal(REGOLE);
+document.getElementById('btnNuova').onclick = ()=>{
+  document.getElementById('scelte').innerHTML='';
+  nuovaPartita();
+};
+document.getElementById('overlay').onclick = e=>{
+  if(e.target.id==='overlay') document.getElementById('overlay').classList.remove('on');
+};
+
+nuovaPartita();
+</script>
+</body>
+</html>
