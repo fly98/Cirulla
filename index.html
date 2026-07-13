@@ -226,9 +226,14 @@ function opzioniPresa(c, t){
 
   if(t.length===0) return opts;
 
-  // Asso piglia tutto
+  // Asso: piglia tutto, MA se in tavola c'è un asso prende solo quello
   if(c.v===1){
-    push(t.slice(), 'asso piglia tutto');
+    const assi = t.filter(x=>x.v===1);
+    if(assi.length){
+      for(const a of assi) push([a], 'uguale');
+    } else {
+      push(t.slice(), 'asso piglia tutto');
+    }
     return opts;
   }
 
@@ -480,7 +485,8 @@ async function esegui(p, carta, presa){
     txt += ` e prend${p==='tu'?'i':'e'} ${presa.cards.map(nomeCarta).join(' + ')} <span class="ok">(${presa.tipo})</span>`;
 
     const ultimaGiocata = d.mazzo.length===0 && d.mani.tu.length===0 && d.mani.cpu.length===0;
-    if(d.tavolo.length===0 && !ultimaGiocata && carta.v!==1){
+    const scopaValida = carta.v!==1 || presa.tipo==='uguale'; // asso piglia tutto non fa scopa; asso su asso sì
+    if(d.tavolo.length===0 && !ultimaGiocata && scopaValida){
       d.scope[p]++;
       txt += ` <span class="ok">SCOPA!</span>`;
     }
@@ -543,7 +549,7 @@ function turnoCpu(){
       sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
       const restano = d.tavolo.length - o.cards.length;
       const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
-      if(restano===0 && !ultima && c.v!==1) sc += 9;   // scopa
+      if(restano===0 && !ultima && (c.v!==1 || o.tipo==='uguale')) sc += 9;   // scopa (vale anche asso su asso)
       if(c.v===1 && restano===0) sc += d.tavolo.length*0.8; // asso piglia tutto
       if(!best || sc>best.sc) best={sc, carta:c, presa:o};
     }
@@ -779,7 +785,7 @@ const REGOLE = `
 <li>3 carte a testa + 4 in tavola. Se in tavola escono <b>2 assi</b>, si rimescola.</li>
 <li><b>Accuso del mazziere</b>: se le 4 carte in tavola sommano 15 le prende e fa 1 scopa; se sommano 30, 2 scope.</li>
 <li><b>Prese</b>: carta uguale · somma di più carte pari alla tua · <b>presa a 15</b> (la tua + carte in tavola = 15).</li>
-<li><b>L'asso piglia tutto</b> il tavolo (ma non fa scopa).</li>
+<li><b>L'asso piglia tutto</b> il tavolo (senza fare scopa). Ma se in tavola c'è un asso, il tuo asso prende <b>solo quello</b> — e se era l'unica carta in tavola, è scopa.</li>
 <li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
 <li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
 <li><b>Bussate (accusi)</b>: si dichiarano al proprio turno, prima di calare. <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>. (Il gioco bussa per te automaticamente al tuo turno.)</li>
