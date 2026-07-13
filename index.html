@@ -43,34 +43,34 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 
 .zona{margin:4px 0}
 .etichetta{font-size:10px;letter-spacing:1.5px;color:#9fd3b5;text-transform:uppercase;margin:2px 4px}
-.cpu-hand{display:flex;gap:7px;justify-content:center;min-height:64px;align-items:center}
+.cpu-hand{display:flex;gap:14px;justify-content:center;min-height:266px;align-items:center}
 .retro{
-  width:44px;height:64px;border-radius:7px;
+  width:176px;height:256px;border-radius:14px;
   background:repeating-linear-gradient(45deg,#8d2b2b,#8d2b2b 4px,#a53535 4px,#a53535 8px);
   border:2px solid #f0e0c0;box-shadow:var(--ombra);
 }
 .tavolo{
-  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;
-  min-height:150px;padding:10px 6px;
+  display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center;
+  min-height:440px;padding:14px 8px;
   background:rgba(0,0,0,.14);border-radius:14px;
   border:1px solid rgba(255,255,255,.08);
 }
-.mano{display:flex;gap:10px;justify-content:center;min-height:132px;align-items:flex-end;padding:6px 0 2px}
+.mano{display:flex;gap:24px;justify-content:center;min-height:530px;align-items:flex-end;padding:6px 0 2px}
 
 .carta{
-  width:74px;height:110px;border-radius:10px;background:var(--carta);color:var(--testo);
+  width:296px;height:509px;border-radius:18px;background:#fff;color:var(--testo);
   box-shadow:var(--ombra);position:relative;cursor:pointer;overflow:hidden;
   border:1px solid #d8cfb8;transition:transform .12s, box-shadow .12s;
   user-select:none;
 }
-.carta .face{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
-.carta.small{width:60px;height:89px}
+.carta .face{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.carta.small{width:240px;height:413px;border-radius:14px}
 .mano .carta:active{transform:translateY(-6px)}
 .carta.sel{transform:translateY(-10px);box-shadow:0 0 0 3px var(--oro),var(--ombra)}
 .carta.evid{box-shadow:0 0 0 3px #59d98a,var(--ombra)}
 .carta.gioca{animation:pulse .8s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
-.settebello::after{content:"★";position:absolute;top:3px;right:5px;font-size:11px;color:var(--oro);text-shadow:0 0 3px #000,0 0 3px #000;z-index:2}
+.settebello::after{content:"★";position:absolute;top:10px;right:14px;font-size:26px;color:var(--oro);text-shadow:0 0 4px #000,0 0 4px #000;z-index:2}
 
 .msg{
   min-height:34px;text-align:center;font-size:13px;padding:7px 10px;
