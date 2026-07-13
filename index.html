@@ -43,34 +43,34 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 
 .zona{margin:4px 0}
 .etichetta{font-size:10px;letter-spacing:1.5px;color:#9fd3b5;text-transform:uppercase;margin:2px 4px}
-.cpu-hand{display:flex;gap:14px;justify-content:center;min-height:266px;align-items:center}
+.cpu-hand{display:flex;gap:8px;justify-content:center;min-height:160px;align-items:center}
 .retro{
-  width:176px;height:256px;border-radius:14px;
+  width:104px;height:152px;border-radius:9px;
   background:repeating-linear-gradient(45deg,#8d2b2b,#8d2b2b 4px,#a53535 4px,#a53535 8px);
   border:2px solid #f0e0c0;box-shadow:var(--ombra);
 }
 .tavolo{
-  display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center;
-  min-height:440px;padding:14px 8px;
+  display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
+  min-height:270px;padding:12px 8px;
   background:rgba(0,0,0,.14);border-radius:14px;
   border:1px solid rgba(255,255,255,.08);
 }
-.mano{display:flex;gap:24px;justify-content:center;min-height:530px;align-items:flex-end;padding:6px 0 2px}
+.mano{display:flex;gap:14px;justify-content:center;min-height:320px;align-items:flex-end;padding:6px 0 2px}
 
 .carta{
-  width:296px;height:509px;border-radius:18px;background:#fff;color:var(--testo);
+  width:176px;height:296px;border-radius:11px;background:#fff;color:var(--testo);
   box-shadow:var(--ombra);position:relative;cursor:pointer;overflow:hidden;
   border:1px solid #d8cfb8;transition:transform .12s, box-shadow .12s;
   user-select:none;
 }
 .carta .face{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
-.carta.small{width:240px;height:413px;border-radius:14px}
+.carta.small{width:140px;height:236px;border-radius:8px}
 .mano .carta:active{transform:translateY(-6px)}
 .carta.sel{transform:translateY(-10px);box-shadow:0 0 0 3px var(--oro),var(--ombra)}
 .carta.evid{box-shadow:0 0 0 3px #59d98a,var(--ombra)}
 .carta.gioca{animation:pulse .8s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
-.settebello::after{content:"★";position:absolute;top:10px;right:14px;font-size:26px;color:var(--oro);text-shadow:0 0 4px #000,0 0 4px #000;z-index:2}
+.settebello::after{content:"★";position:absolute;top:6px;right:8px;font-size:16px;color:var(--oro);text-shadow:0 0 4px #000,0 0 4px #000;z-index:2}
 
 .carta.flying{cursor:default;pointer-events:none}
 .presa-evid{box-shadow:0 0 0 5px #59d98a,0 0 22px 8px rgba(89,217,138,.7),var(--ombra)!important;transform:translateY(-8px);transition:box-shadow .25s,transform .25s}
@@ -359,9 +359,9 @@ async function animaGiocata(p, carta){
     const tavoloEl = document.getElementById('tavolo');
     const tRect = rectOf(tavoloEl);
     const arrivo = {
-      left: tRect.left + tRect.width/2 - 120,
-      top:  tRect.top  + tRect.height/2 - 206,
-      width: 240, height: 413
+      left: tRect.left + tRect.width/2 - 70,
+      top:  tRect.top  + tRect.height/2 - 118,
+      width: 140, height: 236
     };
     const sourceEl = (p==='tu')
       ? document.querySelector(`#mano .carta[data-id="${carta.id}"]`)
