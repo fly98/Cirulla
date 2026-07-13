@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 610">
+  <defs>
+    <pattern id="righe" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="14" height="14" fill="#8d2b2b"/>
+      <rect width="7" height="14" fill="#9b3232"/>
+    </pattern>
+    <radialGradient id="lucido" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.18"/>
+    </radialGradient>
+  </defs>
+
+  <!-- fondo -->
+  <rect x="0" y="0" width="360" height="610" rx="18" fill="url(#righe)"/>
+  <rect x="0" y="0" width="360" height="610" rx="18" fill="url(#lucido)"/>
+
+  <!-- cornice doppia dorata -->
+  <rect x="14" y="14" width="332" height="582" rx="12" fill="none" stroke="#e8c266" stroke-width="3"/>
+  <rect x="24" y="24" width="312" height="562" rx="9" fill="none" stroke="#e8c266" stroke-width="1.2" opacity="0.8"/>
+
+  <!-- rombi decorativi agli angoli -->
+  <g fill="#e8c266" opacity="0.9">
+    <path d="M40 40 l10 14 -10 14 -10 -14 z"/>
+    <path d="M320 40 l10 14 -10 14 -10 -14 z"/>
+    <path d="M40 542 l10 14 -10 14 -10 -14 z"/>
+    <path d="M320 542 l10 14 -10 14 -10 -14 z"/>
+  </g>
+
+  <!-- medaglione centrale -->
+  <ellipse cx="180" cy="305" rx="128" ry="86" fill="#fdfaf3" stroke="#e8c266" stroke-width="4"/>
+  <ellipse cx="180" cy="305" rx="116" ry="75" fill="none" stroke="#8d2b2b" stroke-width="1.4" opacity="0.6"/>
+
+  <!-- aeroplanino di carta -->
+  <g transform="translate(180 258)">
+    <path d="M-26 8 L26 -8 L4 10 L8 16 Z" fill="#8d2b2b"/>
+    <path d="M26 -8 L4 10 L-2 4 Z" fill="#b04040"/>
+  </g>
+
+  <!-- logo -->
+  <text x="180" y="322" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif" font-style="italic"
+        font-size="46" font-weight="bold" fill="#8d2b2b">FlyGames</text>
+  <text x="180" y="352" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="14" letter-spacing="6" fill="#b04040">CIRULLA</text>
+</svg>
