@@ -308,6 +308,7 @@ function nuovaSmazzata(){
   render();
   setMsg(msgIni ? msgIni+'<br>Tocca una carta per giocarla.' : 'Tocca una carta della tua mano.');
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
+  else dichiaraSeDeve('tu');
 }
 
 function distribuisci(){
@@ -318,8 +319,15 @@ function distribuisci(){
     if(d.mazzo.length) d.mani[primo].push(d.mazzo.shift());
     if(d.mazzo.length) d.mani[secondo].push(d.mazzo.shift());
   }
-  // Bussate (dichiarazioni) a inizio mano
-  for(const p of ['tu','cpu']) dichiarazioni(p);
+  // La bussata si dichiara al proprio turno, non alla distribuzione
+  d.daDichiarare = {tu:true, cpu:true};
+}
+
+function dichiaraSeDeve(p){
+  const d = ST.d;
+  if(!d.daDichiarare || !d.daDichiarare[p]) return;
+  d.daDichiarare[p] = false;
+  if(d.mani[p].length===3) dichiarazioni(p);
 }
 
 let busTimer = null;
@@ -487,7 +495,11 @@ async function esegui(p, carta, presa){
   // Fine mano da 3 -> ridistribuisci
   if(d.mani.tu.length===0 && d.mani.cpu.length===0){
     if(d.mazzo.length>0){
-      setTimeout(()=>{ distribuisci(); render(); BUSY=false; if(d.turno==='cpu') setTimeout(turnoCpu,800); }, 700);
+      setTimeout(()=>{
+        distribuisci(); render(); BUSY=false;
+        if(d.turno==='cpu') setTimeout(turnoCpu,800);
+        else dichiaraSeDeve('tu');
+      }, 700);
       return;
     } else {
       BUSY=false;
@@ -497,6 +509,7 @@ async function esegui(p, carta, presa){
   }
   BUSY=false;
   if(d.turno==='cpu') setTimeout(turnoCpu, 850);
+  else dichiaraSeDeve('tu');
 }
 
 /* ============ IA CPU ============ */
@@ -517,6 +530,7 @@ function turnoCpu(){
   if(!d || d.turno!=='cpu' || ST.fine || BUSY) return;
   const mano = d.mani.cpu;
   if(!mano.length) return;
+  dichiaraSeDeve('cpu');
 
   let best=null;
   for(const c of mano){
@@ -768,7 +782,7 @@ const REGOLE = `
 <li><b>L'asso piglia tutto</b> il tavolo (ma non fa scopa).</li>
 <li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
 <li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
-<li><b>Bussate (accusi automatici a inizio mano)</b>: <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>.</li>
+<li><b>Bussate (accusi)</b>: si dichiarano al proprio turno, prima di calare. <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>. (Il gioco bussa per te automaticamente al tuo turno.)</li>
 <li><b>Grande</b>: aver catturato, durante la mano, Fante + Cavallo + Re di denari (anche in prese diverse) → <b>5 punti</b> a fine mano.</li>
 <li><b>Piccola</b>: aver catturato Asso + 2 + 3 di denari → <b>3 punti</b>, +1 per ogni carta successiva consecutiva (4, 5, 6, 7) finché la sequenza non si interrompe.</li>
 <li><b>Punti a fine mano</b>: carte, denari, settebello, primiera, Grande, Piccola, + tutte le scope (incluse quelle delle bussate e dell'accuso del mazziere).</li>
