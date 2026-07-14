@@ -144,15 +144,16 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .zona{margin:2px 0}
   .etichetta{font-size:8px;margin:1px 3px}
 
-  .cpu-hand{gap:5px;min-height:96px}
-  .retro{width:62px;height:90px;border-radius:6px;border-width:1.5px}
+  .cpu-hand{gap:5px;min-height:106px}
+  .retro{width:70px;height:102px;border-radius:7px;border-width:1.5px}
 
-  .tavolo{gap:6px;min-height:152px;padding:8px 4px;border-radius:10px}
-  .mano{gap:8px;min-height:186px;padding:3px 0 1px}
+  .tavolo{gap:4px;min-height:168px;padding:8px 6px;border-radius:10px}
+  .mano{gap:8px;min-height:208px;padding:3px 0 1px}
 
-  .carta{width:108px;height:182px;border-radius:8px}
-  .carta.small{width:86px;height:145px;border-radius:7px}
-  .settebello::after{top:3px;right:5px;font-size:13px}
+  /* larghezza fluida: la mano tiene 3 carte, il tavolo esattamente 4 per riga (5+ vanno a capo) */
+  .carta{width:calc((100vw - 44px)/3);max-width:130px;height:auto;aspect-ratio:0.59;border-radius:8px}
+  .carta.small{width:calc((100vw - 36px)/4);max-width:106px;height:auto;aspect-ratio:0.59;border-radius:7px}
+  .settebello::after{top:3px;right:5px;font-size:14px}
 
   .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:2px 0}
   .scelta{padding:7px 8px;font-size:11.5px}
@@ -491,7 +492,10 @@ async function animaGiocata(p, carta){
     const tavoloEl = document.getElementById('tavolo');
     const tRect = rectOf(tavoloEl);
     const compact = window.matchMedia('(max-width: 540px)').matches;
-    const cw = compact ? 86 : 140, chh = compact ? 145 : 236;
+    const campione = document.querySelector('#tavolo .carta');
+    let cw, chh;
+    if(campione){ const r = rectOf(campione); cw = r.width; chh = r.height; }
+    else { cw = compact ? 92 : 140; chh = compact ? 156 : 236; }
     const arrivo = {
       left: tRect.left + tRect.width/2 - cw/2,
       top:  tRect.top  + tRect.height/2 - chh/2,
