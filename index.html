@@ -486,58 +486,88 @@ function animateTo(el, rect, ms=380, delay=0){
   });
 }
 
-// La carta vola dalla mano (o dal dorso CPU) fino al centro del tavolo
-async function animaGiocata(p, carta){
+// Dimensione reale di una carta "small" sul tavolo (o stima se il tavolo è vuoto)
+function misuraSmall(){
+  const campione = document.querySelector('#tavolo .carta');
+  if(campione){ const r = rectOf(campione); return {w:r.width, h:r.height}; }
+  const compact = window.matchMedia('(max-width: 540px)').matches;
+  return compact ? {w:92, h:156} : {w:140, h:236};
+}
+
+// Animazione completa della giocata:
+// - senza presa: la carta vola dalla mano/dorso al centro del tavolo
+// - con presa: vola SULLA carta (o sul baricentro del gruppo) che prende;
+//   le carte prese convergono tra loro; poi tutte insieme volano al mucchio
+async function animaGiocataEPresa(p, carta, presa){
   try{
-    const tavoloEl = document.getElementById('tavolo');
-    const tRect = rectOf(tavoloEl);
-    const compact = window.matchMedia('(max-width: 540px)').matches;
-    const campione = document.querySelector('#tavolo .carta');
-    let cw, chh;
-    if(campione){ const r = rectOf(campione); cw = r.width; chh = r.height; }
-    else { cw = compact ? 92 : 140; chh = compact ? 156 : 236; }
-    const arrivo = {
-      left: tRect.left + tRect.width/2 - cw/2,
-      top:  tRect.top  + tRect.height/2 - chh/2,
-      width: cw, height: chh
-    };
+    const {w:cw, h:chh} = misuraSmall();
     const sourceEl = (p==='tu')
       ? document.querySelector(`#mano .carta[data-id="${carta.id}"]`)
       : document.querySelector('#cpuHand .retro');
     if(!sourceEl) return;
     const fromRect = rectOf(sourceEl);
     sourceEl.style.visibility='hidden';
-    const clone = cartaEl(carta);
-    styleAsClone(clone, fromRect, 62);
-    document.body.appendChild(clone);
-    await animateTo(clone, arrivo, 420);
-    clone.remove();
-  }catch(e){ /* nessuna animazione, il gioco prosegue comunque */ }
-}
+    const cloneG = cartaEl(carta);
+    styleAsClone(cloneG, fromRect, 63);
+    document.body.appendChild(cloneG);
 
-// Evidenzia sul tavolo la carta giocata + quelle prese, poi le fa volare verso il mucchio di chi le prende
-async function animaPresa(p, idsPresa){
-  try{
-    document.querySelectorAll('#tavolo .carta').forEach(el=>{
-      if(idsPresa.has(Number(el.dataset.id))) el.classList.add('presa-evid');
-    });
-    await sleep(480);
+    if(presa && presa.cards.length){
+      const els = presa.cards
+        .map(c=> document.querySelector(`#tavolo .carta[data-id="${c.id}"]`))
+        .filter(Boolean);
+      if(!els.length){ cloneG.remove(); return; }
+      const rects = els.map(rectOf);
+      const bx = rects.reduce((a,r)=>a+r.left+r.width/2,0)/rects.length;
+      const by = rects.reduce((a,r)=>a+r.top+r.height/2,0)/rects.length;
 
-    const chip = document.getElementById(p==='tu' ? 'pTu' : 'pCpu').closest('.chip');
-    const cRect = rectOf(chip);
-    const target = { left:cRect.left+cRect.width/2-22, top:cRect.top+cRect.height/2-30, width:44, height:60, opacity:'0' };
+      // evidenzia le carte che stanno per essere prese
+      els.forEach(el=>el.classList.add('presa-evid'));
 
-    const els = Array.from(document.querySelectorAll('#tavolo .carta')).filter(el=>idsPresa.has(Number(el.dataset.id)));
-    const clones = els.map((el,i)=>{
-      const rect = rectOf(el);
-      el.style.visibility='hidden';
-      const clone = el.cloneNode(true);
-      styleAsClone(clone, rect, 61+i);
-      document.body.appendChild(clone);
-      return clone;
-    });
-    await Promise.all(clones.map((clone,i)=> animateTo(clone, target, 420, i*45)));
-    clones.forEach(c=>c.remove());
+      // 1) la carta giocata vola sopra la presa (leggermente rialzata e ruotata)
+      cloneG.style.transformOrigin='center';
+      await animateTo(cloneG, {left:bx-cw/2, top:by-chh/2-14, width:cw, height:chh}, 420);
+      cloneG.style.transition='transform .18s';
+      cloneG.style.transform='rotate(-6deg)';
+
+      // 2) se sono più di una, le carte prese convergono verso il punto d'impatto
+      if(els.length>1){
+        els.forEach(el=>{
+          const r = rectOf(el);
+          const dx = (bx - (r.left+r.width/2)) * 0.72;
+          const dy = (by - (r.top+r.height/2)) * 0.72;
+          el.style.transition='transform .32s ease';
+          el.style.transform=`translate(${dx}px, ${dy}px)`;
+        });
+      }
+      await sleep(els.length>1 ? 420 : 300);
+
+      // 3) tutte insieme volano al mucchio di chi prende
+      const chip = document.getElementById(p==='tu' ? 'pTu' : 'pCpu').closest('.chip');
+      const cRect = rectOf(chip);
+      const target = { left:cRect.left+cRect.width/2-22, top:cRect.top+cRect.height/2-30, width:44, height:60, opacity:'0' };
+      const clones = els.map((el,i)=>{
+        const rect = rectOf(el);           // posizione già convergente
+        el.style.visibility='hidden';
+        const cl = el.cloneNode(true);
+        cl.classList.remove('presa-evid');
+        styleAsClone(cl, rect, 61+i);
+        document.body.appendChild(cl);
+        return cl;
+      });
+      cloneG.style.transform='';
+      clones.push(cloneG);
+      await Promise.all(clones.map((cl,i)=> animateTo(cl, target, 420, i*40)));
+      clones.forEach(c=>c.remove());
+    } else {
+      // nessuna presa: la carta si posa al centro del tavolo
+      const tRect = rectOf(document.getElementById('tavolo'));
+      await animateTo(cloneG, {
+        left: tRect.left + tRect.width/2 - cw/2,
+        top:  tRect.top  + tRect.height/2 - chh/2,
+        width: cw, height: chh
+      }, 420);
+      cloneG.remove();
+    }
   }catch(e){ /* nessuna animazione, il gioco prosegue comunque */ }
 }
 
@@ -547,23 +577,14 @@ async function esegui(p, carta, presa){
   BUSY = true;
   const d = ST.d;
 
-  // 1) la carta vola dalla mano/dorso verso il tavolo
-  await animaGiocata(p, carta);
-
-  // 2) la posiamo davvero sul tavolo e ri-disegniamo, così si vede posata lì
+  // 1) Animazione: con presa la carta vola dritta sulle carte che prende; senza presa si posa al centro
   d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
-  d.tavolo.push(carta);
-  render();
-
   let txt = `${p==='tu'?'Giochi':'CPU gioca'} ${nomeCarta(carta)}`;
+  await animaGiocataEPresa(p, carta, presa);
 
   if(presa && presa.cards.length){
-    // 3) evidenzia la presa sul tavolo, poi la fa volare verso il mucchio di chi prende
-    const idsPresa = new Set([carta.id, ...presa.cards.map(c=>c.id)]);
-    await animaPresa(p, idsPresa);
-
     const ids = new Set(presa.cards.map(c=>c.id));
-    d.tavolo = d.tavolo.filter(c=>!ids.has(c.id) && c.id!==carta.id);
+    d.tavolo = d.tavolo.filter(c=>!ids.has(c.id));
     const tutte = [carta, ...presa.cards];
     d.prese[p].push(...tutte);
     d.ultimaPresa = p;
@@ -576,6 +597,7 @@ async function esegui(p, carta, presa){
       txt += ` <span class="ok">SCOPA!</span>`;
     }
   } else {
+    d.tavolo.push(carta);
     txt += ` (nessuna presa)`;
   }
 
