@@ -351,12 +351,11 @@ function controllaAccuse(p){
 }
 
 /* ============ REGOLE DI GIOCO ============ */
-function faseObbligo(){ return ST.d.tallone.length===0; }
-
+// L'obbligo di rispondere al seme vale SEMPRE, anche finché si pesca dal tallone
 function carteLegali(p){
   const d = ST.d;
   const mano = d.mani[p];
-  if(!faseObbligo() || d.banco.length===0) return mano.slice();
+  if(d.banco.length===0) return mano.slice();
   const semeUscita = d.banco[0].carta.s;
   const stessoSeme = mano.filter(c=>c.s===semeUscita);
   return stessoSeme.length ? stessoSeme : mano.slice();
@@ -430,12 +429,9 @@ async function animaPescata(p, carta){
     const clone = cartaEl(carta,'small');
     styleAsClone(clone, {left:from.left, top:from.top, width:from.width, height:from.height}, 66);
     document.body.appendChild(clone);
-    // si mostra scoperta accanto al mazzetto, dal lato di chi pesca
-    const banco = rectOf(document.getElementById('banco'));
-    const compact = window.matchMedia('(max-width: 540px)').matches;
-    const w = compact? 84:116, hh = compact? 142:196;
-    const showTop = (p==='tu') ? banco.top + banco.height - hh - 6 : banco.top + 6;
-    await animateTo(clone, {left: banco.left + (compact?56:104), top: showTop, width:w, height:hh}, 320);
+    // si mostra scoperta sopra lo slot del giocatore (CPU a sinistra, TU a destra): mai sovrapposte
+    const slot = rectOf(document.getElementById(p==='tu' ? 'slotTu' : 'slotCpu'));
+    await animateTo(clone, {left: slot.left+2, top: slot.top+2, width: slot.width-4, height: slot.height-4}, 320);
     await sleep(1200);
     const zona = document.getElementById(p==='tu'?'mano':'cpuHand');
     const z = rectOf(zona);
@@ -483,6 +479,11 @@ async function gioca(p, carta){
   d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
   if(d.pescateNote) d.pescateNote[p] = d.pescateNote[p].filter(id=>id!==carta.id);
   await animaGiocataSlot(p, carta);
+  if(d.banco.length===1 && carta.s !== d.banco[0].carta.s){
+    // il rispondente non ha il seme di apertura: void certo
+    if(!d.void) d.void = {tu:[], cpu:[]};
+    if(!d.void[p].includes(d.banco[0].carta.s)) d.void[p].push(d.banco[0].carta.s);
+  }
   d.banco.push({p, carta});
   d.turno = (p==='tu')?'cpu':'tu';
   render();
@@ -527,7 +528,7 @@ async function gioca(p, carta){
     if(cartaP.v===1) addFortuna(perd==='tu'?0.5:-0.5, `Asso pescato ${perd==='tu'?'da te':'dalla CPU'} (+0.5)`);
     controllaAccuse(vinc);
     controllaAccuse(perd);
-    if(d.tallone.length===0) setMsg('Tallone esaurito: da ora <b>obbligo di rispondere al seme</b>.');
+    if(d.tallone.length===0) setMsg('Tallone esaurito: ultime dieci mani!');
   }
 
   d.turno = vinc;
@@ -599,8 +600,7 @@ function assoSicuro(s){ // l'asso di s non può più essere battuto
 // void dell'avversario, dedotti in fase obbligo
 function nemicoVoid(){
   const d = ST.d;
-  if(!d.void) d.void = new Set();
-  return d.void;
+  return new Set((d.void && d.void.tu) || []);
 }
 
 function carteNoteNemico(){
@@ -674,9 +674,9 @@ function render(){
   document.getElementById('pCpu').textContent = ST.tot.cpu;
   const livLabel = {facile:'😴', medio:'🎯', difficile:'🧠'}[ST.livello||'medio'];
   document.getElementById('cpuInfo').textContent = `${livLabel} ${d.mani.cpu.length} carte` + (d.turno==='cpu'?' · tocca a lei':'');
-  document.getElementById('tuInfo').textContent  = (d.turno==='tu') ? (faseObbligo()&&d.banco.length? 'rispondi al seme' : 'tocca a te') : 'attendi…';
+  document.getElementById('tuInfo').textContent  = (d.turno==='tu') ? (d.banco.length? 'rispondi al seme' : 'tocca a te') : 'attendi…';
   document.getElementById('statoPrese').textContent =
-    `Prese: tu ${d.prese.tu.length/2|0} · cpu ${d.prese.cpu.length/2|0}` + (faseObbligo()?' — obbligo di seme':'');
+    `Prese: tu ${d.prese.tu.length/2|0} · cpu ${d.prese.cpu.length/2|0} — obbligo di seme`;
 
   // FLIP mano
   const prima = {};
@@ -839,7 +839,6 @@ function salvaPartita(){
   try{
     if(!ST || ST.fine){ localStorage.removeItem(SAVE_KEY); return; }
     const copia = JSON.parse(JSON.stringify(ST));
-    if(copia.d && copia.d.void) delete copia.d.void;
     localStorage.setItem(SAVE_KEY, JSON.stringify(copia));
   }catch(e){}
 }
@@ -952,8 +951,8 @@ const REGOLE = `
 <li><b>Mazzo 40 carte</b>, 10 a testa, 20 nel tallone. Gerarchia: <b>3 &gt; 2 &gt; Asso &gt; Re &gt; Cavallo &gt; Fante &gt; 7 &gt; 6 &gt; 5 &gt; 4</b>. Non esistono briscole.</li>
 <li>Apre chi non è di mazzo. Vince la presa la carta più alta <b>del seme di apertura</b>: se rispondi con un altro seme, non prendi mai.</li>
 <li><b>La carta pescata è pubblica</b>: viene mostrata scoperta a entrambi i giocatori prima di entrare in mano. Anche la CPU (a livello difficile) se la ricorda!</li>
-<li><b>Finché c'è il tallone</b> puoi giocare qualsiasi carta. Chi prende pesca per primo, poi l'altro, e apre la mano successiva.</li>
-<li><b>Tallone esaurito</b>: scatta l'obbligo di rispondere al seme, se ce l'hai (non c'è obbligo di superare).</li>
+<li><b>Obbligo di rispondere al seme, sempre</b> (anche finché si pesca): se hai il seme di apertura devi giocarlo; non c'è obbligo di superare. Le carte non giocabili appaiono attenuate.</li>
+<li>Chi prende pesca per primo, poi l'altro, e apre la mano successiva.</li>
 <li><b>Punti carte</b> (in terzi): Asso = 1 punto; 3, 2, Re, Cavallo e Fante = ⅓ ciascuno; i terzi avanzati si perdono. <b>Ultima presa = 1 punto</b>.</li>
 <li><b>Accuse (buongiochi)</b>, dichiarate automaticamente appena le hai in mano: <b>Napoletana</b> (Asso+2+3 dello stesso seme) = 3 punti; <b>tre assi / tre due / tre tre</b> = 3 punti; <b>quattro</b> = 4 punti. Ogni combinazione si accusa una sola volta.</li>
 <li>Vince chi arriva per primo a <b>31 punti</b> (buongiochi compresi) a fine smazzata; a pari punti si continua.</li>
