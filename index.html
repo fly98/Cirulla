@@ -541,10 +541,12 @@ async function animaGiocataEPresa(p, carta, presa){
       }
       await sleep(els.length>1 ? 420 : 300);
 
-      // 3) tutte insieme volano al mucchio di chi prende
-      const chip = document.getElementById(p==='tu' ? 'pTu' : 'pCpu').closest('.chip');
-      const cRect = rectOf(chip);
-      const target = { left:cRect.left+cRect.width/2-22, top:cRect.top+cRect.height/2-30, width:44, height:60, opacity:'0' };
+      // 3) tutte insieme volano verso chi le ha prese (giù verso di te, su verso la CPU)
+      const zona = document.getElementById(p==='tu' ? 'mano' : 'cpuHand');
+      const zRect = rectOf(zona);
+      const target = (p==='tu')
+        ? { left:zRect.left+zRect.width/2-26, top:zRect.bottom+20, width:52, height:72, opacity:'0' }
+        : { left:zRect.left+zRect.width/2-26, top:zRect.top-90, width:52, height:72, opacity:'0' };
       const clones = els.map((el,i)=>{
         const rect = rectOf(el);           // posizione già convergente
         el.style.visibility='hidden';
