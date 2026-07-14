@@ -333,12 +333,15 @@ function valutaPiccolaGrande(prese){
 
 /* ============ SETUP PARTITA / SMAZZATA ============ */
 function nuovaPartita(){
+  let liv = 'medio';
+  try{ liv = localStorage.getItem('cirulla_livello') || 'medio'; }catch(e){}
   ST = {
     tot:{tu:0,cpu:0},
     mazziere:'cpu',       // il primo di mano è chi sta a destra del mazziere = tu
     fine:false,
     fortunaTot:0,
-    smazzate:0
+    smazzate:0,
+    livello: liv
   };
   document.getElementById('pTu').textContent=0;
   document.getElementById('pCpu').textContent=0;
@@ -647,7 +650,7 @@ async function esegui(p, carta, presa){
   else dichiaraSeDeve('tu');
 }
 
-/* ============ IA CPU ============ */
+/* ============ IA CPU — tre livelli ============ */
 function valutaPresa(cards){
   let v = cards.length*1.0;
   for(const c of cards){
@@ -667,6 +670,30 @@ function turnoCpu(){
   if(!mano.length) return;
   dichiaraSeDeve('cpu');
 
+  const liv = ST.livello || 'medio';
+  if(liv==='facile') return cpuFacile();
+  if(liv==='difficile') return cpuDifficile();
+  return cpuMedio();
+}
+
+/* --- FACILE: conosce le regole, zero strategia --- */
+function cpuFacile(){
+  const d = ST.d;
+  const mano = d.mani.cpu;
+  const carta = mano[(Math.random()*mano.length)|0];
+  const opts = opzioniPresa(carta, d.tavolo);
+  if(opts.length){
+    esegui('cpu', carta, opts[(Math.random()*opts.length)|0]);
+  } else {
+    esegui('cpu', carta, null);
+  }
+}
+
+/* --- MEDIO: euristica strategica --- */
+function cpuMedio(){
+  const d = ST.d;
+  const mano = d.mani.cpu;
+
   let best=null;
   for(const c of mano){
     const opts = opzioniPresa(c, d.tavolo);
@@ -683,24 +710,102 @@ function turnoCpu(){
       if(!best || sc>best.sc) best={sc, carta:c, presa:o};
     }
   }
-
   if(best){ esegui('cpu', best.carta, best.presa); return; }
 
   // Nessuna presa: scarta la carta meno pericolosa/preziosa
   let peggio=null;
   for(const c of mano){
     let rischio = 0;
-    // quanto è pericoloso lasciarla (l'avversario può prenderla facilmente?)
-    rischio += (15 - c.v) * 0.05;                 // carte alte lasciano prese a 15 più difficili
+    rischio += (15 - c.v) * 0.05;
     rischio += isSettebello(c) ? 20 : 0;
     rischio += (c.s==='d') ? 2.2 : 0;
     rischio += (c.v===7) ? 1.8 : 0;
     rischio += (c.v===6) ? 1.0 : 0;
     const nuovoTot = d.tavolo.reduce((a,x)=>a+x.v,0) + c.v;
-    if(nuovoTot===15) rischio += 3;               // regala una presa a 15 secca
+    if(nuovoTot===15) rischio += 3;
     if(!peggio || rischio<peggio.r) peggio={r:rischio, carta:c};
   }
   esegui('cpu', peggio.carta, null);
+}
+
+/* --- DIFFICILE: memoria delle carte uscite + probabilità --- */
+// Carte che la CPU NON ha visto: il resto del mazzo + la tua mano.
+// (viste: le sue carte, il tavolo, tutte le prese di entrambi)
+function nonVistePerValore(){
+  const d = ST.d;
+  const cnt = Array(11).fill(4);
+  for(const c of [...d.prese.tu, ...d.prese.cpu, ...d.tavolo, ...d.mani.cpu]) cnt[c.v]--;
+  const tot = cnt.reduce((a,b)=>a+b,0);
+  return {cnt, tot};
+}
+
+// Probabilità (approssimata) che l'avversario possa prendere qualcosa su questo tavolo
+function rischioTavolo(tavolo){
+  const d = ST.d;
+  const {cnt, tot} = nonVistePerValore();
+  const nemico = d.mani.tu.length;
+  if(!nemico || !tot || !tavolo.length) return {p:0, dannoAtteso:0};
+
+  let utili = 0;         // quante carte non viste permetterebbero una presa
+  let dannoMax = 0;      // valore della presa peggiore che potremmo regalare
+  for(let v=1; v<=10; v++){
+    if(!cnt[v]) continue;
+    const opts = opzioniPresa({v, s:'x', id:-1}, tavolo);
+    if(opts.length){
+      utili += cnt[v];
+      for(const o of opts){
+        let val = valutaPresa(o.cards);
+        if(o.cards.length===tavolo.length && v!==1) val += 9;  // ci farebbe scopa
+        if(val>dannoMax) dannoMax = val;
+      }
+    }
+  }
+  // p ≈ probabilità che almeno una delle carte in mano al nemico sia "utile"
+  const p = Math.min(1, 1 - Math.pow(1 - utili/tot, nemico));
+  return {p, dannoAtteso: p*dannoMax};
+}
+
+function cpuDifficile(){
+  const d = ST.d;
+  const mano = d.mani.cpu;
+  const mosse = [];
+
+  for(const c of mano){
+    const opts = opzioniPresa(c, d.tavolo);
+    if(opts.length){
+      for(const o of opts){
+        const tutte=[c,...o.cards];
+        let sc = valutaPresa(tutte) + valutaPresa([c])*0.4;
+        const primaPG = valutaPiccolaGrande(d.prese.cpu);
+        const dopoPG  = valutaPiccolaGrande(d.prese.cpu.concat(tutte));
+        sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
+        const restano = d.tavolo.length - o.cards.length;
+        const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
+        if(restano===0 && !ultima && (c.v!==1 || o.tipo==='uguale')) sc += 9;
+        if(c.v===1 && restano===0) sc += d.tavolo.length*0.8;
+        // guarda avanti: quanto è pericoloso il tavolo che lascio?
+        const ids = new Set(o.cards.map(x=>x.id));
+        const tavoloDopo = d.tavolo.filter(x=>!ids.has(x.id));
+        sc -= rischioTavolo(tavoloDopo).dannoAtteso * 0.7;
+        mosse.push({sc, carta:c, presa:o});
+      }
+    } else {
+      // scarto: rischio calcolato sulle carte realmente ancora in giro
+      const tavoloDopo = [...d.tavolo, c];
+      const r = rischioTavolo(tavoloDopo);
+      let sc = -r.dannoAtteso;
+      sc -= isSettebello(c) ? 14 : 0;      // mai regalare il settebello se evitabile
+      sc -= (c.s==='d') ? 1.6 : 0;
+      sc -= (c.v===7) ? 1.2 : 0;
+      // tenersi assi e carte utili per Piccola/Grande future
+      if(c.v===1) sc -= 0.8;
+      mosse.push({sc, carta:c, presa:null});
+    }
+  }
+
+  mosse.sort((a,b)=>b.sc-a.sc);
+  const m = mosse[0];
+  esegui('cpu', m.carta, m.presa);
 }
 
 /* ============ FINE SMAZZATA / PUNTEGGIO ============ */
@@ -836,7 +941,8 @@ function render(){
   document.getElementById('pMazzo').textContent = d.mazzo.length;
   document.getElementById('statoPrese').textContent =
     `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length} — Scope: ${d.scope.tu}–${d.scope.cpu}`;
-  document.getElementById('cpuInfo').textContent = `${d.mani.cpu.length} carte` + (d.turno==='cpu'?' · tocca a lei':'');
+  const livLabel = {facile:'😴', medio:'🎯', difficile:'🧠'}[ST.livello||'medio'];
+  document.getElementById('cpuInfo').textContent = `${livLabel} ${d.mani.cpu.length} carte` + (d.turno==='cpu'?' · tocca a lei':'');
   document.getElementById('tuInfo').textContent  = (d.turno==='tu')?'tocca a te':'attendi…';
 
   // FLIP fase 1: memorizzo dove sono le carte adesso
@@ -1057,6 +1163,14 @@ function registraStorico(){
   }catch(e){}
 }
 
+function setLivello(liv){
+  try{ localStorage.setItem('cirulla_livello', liv); }catch(e){}
+  if(ST) ST.livello = liv;
+  salvaPartita();
+  render();
+  apriMenu(); // ridisegna il menu con la selezione aggiornata
+}
+
 function apriMenu(){
   let h = [];
   try{ h = JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); }catch(e){}
@@ -1077,8 +1191,21 @@ function apriMenu(){
       </tr>`).join('')
     : `<tr><td colspan="5" style="color:#9fd3b5">Nessuna partita conclusa finora.</td></tr>`;
 
+  const livAttuale = (ST && ST.livello) || (localStorage.getItem('cirulla_livello')||'medio');
+  const livBtn = (id,label,desc)=>`
+    <button class="btn ${livAttuale===id?'':'ghost'}" style="flex:1;flex-direction:column;padding:10px 6px"
+      onclick="setLivello('${id}')">
+      ${label}<br><span style="font-size:9.5px;font-weight:400;opacity:.85">${desc}</span>
+    </button>`;
+
   apriModal(`
     <h2>Storico partite</h2>
+    <div style="font-size:13px;color:#9fd3b5;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Livello CPU</div>
+    <div style="display:flex;gap:7px;margin-bottom:16px">
+      ${livBtn('facile','😴 Facile','solo le regole')}
+      ${livBtn('medio','🎯 Medio','gioca di strategia')}
+      ${livBtn('difficile','🧠 Difficile','conta le carte')}
+    </div>
     <div style="font-size:15px;margin-bottom:10px">
       Giocate <b>${h.length}</b> · Vinte <b style="color:var(--oro)">${vinte}</b> · Perse <b>${perse}</b>
       ${h.length?` · <span style="color:#9fd3b5">${Math.round(vinte/h.length*100)}% vittorie</span>`:''}
