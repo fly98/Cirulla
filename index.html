@@ -131,6 +131,48 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 .btn-big{font-size:17px;padding:13px 20px;width:100%;margin-top:4px}
 .regole{font-size:13.5px;line-height:1.6;color:#ddefe4}
 .regole li{margin-bottom:6px}
+
+/* ===== iPhone / schermi stretti: tutto visibile senza scroll ===== */
+@media (max-width: 540px){
+  body{padding:env(safe-area-inset-top) 4px env(safe-area-inset-bottom)}
+  header{padding:4px 2px}
+  h1{font-size:13px;letter-spacing:1px}
+  h1 small{font-size:7px}
+  .chip{padding:3px 6px;font-size:9px;border-radius:7px}
+  .chip b{font-size:12px}
+  .btn{padding:6px 9px;font-size:11px}
+  .zona{margin:2px 0}
+  .etichetta{font-size:8px;margin:1px 3px}
+
+  .cpu-hand{gap:5px;min-height:82px}
+  .retro{width:52px;height:76px;border-radius:6px;border-width:1.5px}
+
+  .tavolo{gap:5px;min-height:128px;padding:7px 4px;border-radius:10px}
+  .mano{gap:7px;min-height:152px;padding:3px 0 1px}
+
+  .carta{width:88px;height:148px;border-radius:7px}
+  .carta.small{width:70px;height:118px;border-radius:6px}
+  .settebello::after{top:3px;right:5px;font-size:12px}
+
+  .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:2px 0}
+  .scelta{padding:7px 8px;font-size:11.5px}
+  .scelta .tag{font-size:8.5px}
+  .scelte-barra .btn{padding:9px 10px;font-size:12px}
+  .footer{font-size:9px;padding:4px 2px 8px}
+
+  .bussata{padding:16px 20px}
+  .bussata .pugno{font-size:34px}
+  .bussata .titolo{font-size:16px}
+  .bussata .dett{font-size:12px}
+
+  .card-modal{padding:14px;max-height:90vh}
+  .card-modal h2{font-size:19px}
+  table{font-size:13.5px}
+  th,td{padding:7px 4px}
+  td.n{font-size:14.5px}
+  .tot.big td{font-size:16px}
+  .btn-big{font-size:15px;padding:11px 14px}
+}
 </style>
 </head>
 <body>
@@ -448,10 +490,12 @@ async function animaGiocata(p, carta){
   try{
     const tavoloEl = document.getElementById('tavolo');
     const tRect = rectOf(tavoloEl);
+    const compact = window.matchMedia('(max-width: 540px)').matches;
+    const cw = compact ? 70 : 140, chh = compact ? 118 : 236;
     const arrivo = {
-      left: tRect.left + tRect.width/2 - 70,
-      top:  tRect.top  + tRect.height/2 - 118,
-      width: 140, height: 236
+      left: tRect.left + tRect.width/2 - cw/2,
+      top:  tRect.top  + tRect.height/2 - chh/2,
+      width: cw, height: chh
     };
     const sourceEl = (p==='tu')
       ? document.querySelector(`#mano .carta[data-id="${carta.id}"]`)
