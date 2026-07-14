@@ -65,6 +65,15 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 }
 .slot{width:120px;height:202px;border-radius:9px;border:1.5px dashed rgba(255,255,255,.25);
   display:flex;align-items:center;justify-content:center;position:relative}
+.mazzetto{position:relative;width:74px;height:124px;flex:0 0 auto}
+.mazzetto .retro{width:100%;height:100%;position:absolute;left:0;top:0}
+.mazzetto .retro:nth-child(2){left:3px;top:-3px}
+.mazzetto .conta{
+  position:absolute;top:-12px;right:-10px;z-index:2;
+  background:var(--oro);color:#2b2110;font-size:13px;font-weight:800;
+  border-radius:11px;padding:3px 9px;box-shadow:var(--ombra);
+}
+.mazzetto.vuoto{opacity:.25}
 .slot .chi{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:9px;letter-spacing:1.5px;color:#9fd3b5}
 .mano{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:200px;align-items:flex-end;padding:6px 0 2px}
 
@@ -134,6 +143,8 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .retro{width:34px;height:57px;border-radius:4px;border-width:1px}
   .banco{gap:14px;min-height:150px;padding:8px 4px;border-radius:10px}
   .slot{width:80px;height:135px}
+  .mazzetto{width:46px;height:78px}
+  .mazzetto .conta{font-size:10px;padding:2px 6px;top:-9px;right:-8px}
   .mano{gap:5px;min-height:250px}
   .carta{width:calc((100vw - 38px)/5);max-width:78px;height:auto;aspect-ratio:0.59;border-radius:6px}
   .carta.small{width:78px;height:132px}
@@ -180,6 +191,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 <div class="zona">
   <div class="etichetta">Banco</div>
   <div class="banco" id="banco">
+    <div class="mazzetto" id="mazzetto"><div class="retro"></div><div class="retro"></div><div class="conta" id="contaTallone">20</div></div>
     <div class="slot" id="slotCpu"><div class="chi">CPU</div></div>
     <div class="slot" id="slotTu"><div class="chi">TU</div></div>
   </div>
@@ -410,11 +422,33 @@ async function animaGiocataSlot(p, carta){
   }catch(e){}
 }
 
+// La pescata è pubblica: la carta si mostra scoperta, poi vola nella mano di chi l'ha pescata
+async function animaPescata(p, carta){
+  try{
+    const mz = document.getElementById('mazzetto');
+    const from = rectOf(mz);
+    const clone = cartaEl(carta,'small');
+    styleAsClone(clone, {left:from.left, top:from.top, width:from.width, height:from.height}, 66);
+    document.body.appendChild(clone);
+    // si mostra scoperta accanto al mazzetto, dal lato di chi pesca
+    const banco = rectOf(document.getElementById('banco'));
+    const compact = window.matchMedia('(max-width: 540px)').matches;
+    const w = compact? 84:116, hh = compact? 142:196;
+    const showTop = (p==='tu') ? banco.top + banco.height - hh - 6 : banco.top + 6;
+    await animateTo(clone, {left: banco.left + (compact?56:104), top: showTop, width:w, height:hh}, 320);
+    await sleep(1200);
+    const zona = document.getElementById(p==='tu'?'mano':'cpuHand');
+    const z = rectOf(zona);
+    await animateTo(clone, {left:z.left+z.width/2-28, top:(p==='tu'? z.top+16 : z.top), width:56, height:95, opacity:'0'}, 380);
+    clone.remove();
+  }catch(e){}
+}
+
 async function animaPresaBanco(vincitore){
   try{
     const els = document.querySelectorAll('.slot .carta');
     els.forEach(el=>el.classList.add('presa-evid'));
-    await sleep(520);
+    await sleep(1300);
     const zona = document.getElementById(vincitore==='tu' ? 'mano' : 'cpuHand');
     const zRect = rectOf(zona);
     const target = (vincitore==='tu')
@@ -447,6 +481,7 @@ async function gioca(p, carta){
   BUSY = true;
 
   d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
+  if(d.pescateNote) d.pescateNote[p] = d.pescateNote[p].filter(id=>id!==carta.id);
   await animaGiocataSlot(p, carta);
   d.banco.push({p, carta});
   d.turno = (p==='tu')?'cpu':'tu';
@@ -468,13 +503,27 @@ async function gioca(p, carta){
   d.banco = [];
   d.ultimaPresa = vinc;
 
-  // pesca dal tallone: prima il vincitore
+  // pesca dal tallone: prima il vincitore — la pescata è PUBBLICA (si mostra a entrambi)
   if(d.tallone.length){
     const perd = (vinc==='tu')?'cpu':'tu';
-    d.mani[vinc].push(d.tallone.shift());
-    d.mani[perd].push(d.tallone.shift());
-    const pescataV = d.mani[vinc][d.mani[vinc].length-1];
-    if(pescataV.v===1) addFortuna(vinc==='tu'?0.5:-0.5, `Asso pescato ${vinc==='tu'?'da te':'dalla CPU'} (+0.5)`);
+    const cartaV = d.tallone.shift();
+    const cartaP = d.tallone.shift();
+    if(!d.pescateNote) d.pescateNote = {tu:[], cpu:[]};
+
+    render();
+    setMsg(`${vinc==='tu'?'Peschi':'La CPU pesca'} <b>${nomeCarta(cartaV)}</b>…`);
+    await animaPescata(vinc, cartaV);
+    d.mani[vinc].push(cartaV);
+    d.pescateNote[vinc].push(cartaV.id);
+    render();
+
+    setMsg(`${perd==='tu'?'Peschi':'La CPU pesca'} <b>${nomeCarta(cartaP)}</b>.`);
+    await animaPescata(perd, cartaP);
+    d.mani[perd].push(cartaP);
+    d.pescateNote[perd].push(cartaP.id);
+
+    if(cartaV.v===1) addFortuna(vinc==='tu'?0.5:-0.5, `Asso pescato ${vinc==='tu'?'da te':'dalla CPU'} (+0.5)`);
+    if(cartaP.v===1) addFortuna(perd==='tu'?0.5:-0.5, `Asso pescato ${perd==='tu'?'da te':'dalla CPU'} (+0.5)`);
     controllaAccuse(vinc);
     controllaAccuse(perd);
     if(d.tallone.length===0) setMsg('Tallone esaurito: da ora <b>obbligo di rispondere al seme</b>.');
@@ -553,14 +602,25 @@ function nemicoVoid(){
   return d.void;
 }
 
+function carteNoteNemico(){
+  const d = ST.d;
+  if(!d.pescateNote) return [];
+  const ids = new Set(d.pescateNote.tu);
+  return d.mani.tu.filter(c=>ids.has(c.id));
+}
+
 function scegliDifficile(legali){
   const d = ST.d;
   const voidSet = nemicoVoid();
+  const note = carteNoteNemico();
 
   if(d.banco.length===0){
     // 1) incassa gli assi sicuri
     const assi = legali.filter(c=>c.v===1 && assoSicuro(c.s));
     if(assi.length) return assi[0];
+    // 1b) non aprire in semi dove SO che il nemico ha una carta che mi batte
+    const legaliSafe = legali.filter(c => !note.some(n => n.s===c.s && FORZA[n.v]>FORZA[c.v]));
+    if(lisce(legaliSafe).length) return lisce(legaliSafe).sort((a,b)=>FORZA[a.v]-FORZA[b.v])[0];
     // 2) incassa 3 quando il 2 conta poco? apri liscia dal seme dove il nemico NON è void
     const l = lisce(legali).filter(c=>!voidSet.has(c.s));
     if(l.length) return l.sort((a,b)=>FORZA[a.v]-FORZA[b.v])[0];
@@ -607,6 +667,8 @@ function cartaEl(c, cls){
 function render(){
   const d = ST.d;
   document.getElementById('pTallone').textContent = d.tallone.length;
+  document.getElementById('contaTallone').textContent = d.tallone.length;
+  document.getElementById('mazzetto').classList.toggle('vuoto', d.tallone.length===0);
   document.getElementById('pTu').textContent = ST.tot.tu;
   document.getElementById('pCpu').textContent = ST.tot.cpu;
   const livLabel = {facile:'😴', medio:'🎯', difficile:'🧠'}[ST.livello||'medio'];
@@ -887,6 +949,7 @@ const REGOLE = `
 <ul>
 <li><b>Mazzo 40 carte</b>, 10 a testa, 20 nel tallone. Gerarchia: <b>3 &gt; 2 &gt; Asso &gt; Re &gt; Cavallo &gt; Fante &gt; 7 &gt; 6 &gt; 5 &gt; 4</b>. Non esistono briscole.</li>
 <li>Apre chi non è di mazzo. Vince la presa la carta più alta <b>del seme di apertura</b>: se rispondi con un altro seme, non prendi mai.</li>
+<li><b>La carta pescata è pubblica</b>: viene mostrata scoperta a entrambi i giocatori prima di entrare in mano. Anche la CPU (a livello difficile) se la ricorda!</li>
 <li><b>Finché c'è il tallone</b> puoi giocare qualsiasi carta. Chi prende pesca per primo, poi l'altro, e apre la mano successiva.</li>
 <li><b>Tallone esaurito</b>: scatta l'obbligo di rispondere al seme, se ce l'hai (non c'è obbligo di superare).</li>
 <li><b>Punti carte</b> (in terzi): Asso = 1 punto; 3, 2, Re, Cavallo e Fante = ⅓ ciascuno; i terzi avanzati si perdono. <b>Ultima presa = 1 punto</b>.</li>
