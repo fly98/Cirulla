@@ -20,18 +20,23 @@
   --ombra:0 4px 10px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html{
-  background:#06301b url('cards/tavolo.jpg') center/cover no-repeat;
-}
 html,body{margin:0;padding:0;height:100%}
 body{
-  background:transparent;
+  background:#06301b;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   color:#fff;
   display:flex;flex-direction:column;
   padding:env(safe-area-inset-top) 8px env(safe-area-inset-bottom);
   min-height:100vh;
   overflow-x:hidden;
+}
+/* il tavolo copre SEMPRE tutto lo schermo, sforando oltre le safe area */
+body::before{
+  content:'';
+  position:fixed;
+  top:-90px; left:-40px; right:-40px; bottom:-90px;
+  background:#06301b url('cards/tavolo.jpg') center/cover no-repeat;
+  z-index:-1;
 }
 header{
   display:flex;align-items:center;justify-content:space-between;
@@ -195,7 +200,10 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
     <div class="chip">CPU<b id="pCpu">0</b></div>
     <div class="chip">MAZZO<b id="pMazzo">40</b></div>
   </div>
-  <button class="btn ghost" id="btnRegole">?</button>
+  <div style="display:flex;gap:6px">
+    <button class="btn" id="btnNuova">Nuova</button>
+    <button class="btn ghost" id="btnRegole">?</button>
+  </div>
 </header>
 
 <div class="zona">
@@ -218,7 +226,6 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 
 <div class="footer">
   <span id="statoPrese">Prese: tu 0 · cpu 0</span>
-  <button class="btn" id="btnNuova">Nuova partita</button>
 </div>
 
 <div class="overlay" id="overlay">
@@ -573,11 +580,13 @@ async function animaGiocataEPresa(p, carta, presa){
     } else {
       // nessuna presa: la carta si posa al centro del tavolo
       const tRect = rectOf(document.getElementById('tavolo'));
-      await animateTo(cloneG, {
+      const arrivo = {
         left: tRect.left + tRect.width/2 - cw/2,
         top:  tRect.top  + tRect.height/2 - chh/2,
         width: cw, height: chh
-      }, 420);
+      };
+      await animateTo(cloneG, arrivo, 420);
+      LASTPOS[carta.id] = {left:arrivo.left, top:arrivo.top};
       cloneG.remove();
     }
   }catch(e){ /* nessuna animazione, il gioco prosegue comunque */ }
@@ -817,6 +826,9 @@ function cartaEl(c, cls){
   return d;
 }
 
+// Ultima posizione nota della carta appena posata (per continuità con l'animazione di volo)
+const LASTPOS = {};
+
 function render(){
   const d = ST.d;
   document.getElementById('pMazzo').textContent = d.mazzo.length;
@@ -824,6 +836,12 @@ function render(){
     `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length} — Scope: ${d.scope.tu}–${d.scope.cpu}`;
   document.getElementById('cpuInfo').textContent = `${d.mani.cpu.length} carte` + (d.turno==='cpu'?' · tocca a lei':'');
   document.getElementById('tuInfo').textContent  = (d.turno==='tu')?'tocca a te':'attendi…';
+
+  // FLIP fase 1: memorizzo dove sono le carte adesso
+  const prima = {};
+  document.querySelectorAll('#tavolo .carta, #mano .carta').forEach(el=>{
+    if(el.style.visibility!=='hidden') prima[el.dataset.id] = el.getBoundingClientRect();
+  });
 
   const ch = document.getElementById('cpuHand');
   ch.innerHTML='';
@@ -850,6 +868,34 @@ function render(){
     const e = cartaEl(c, (d.turno==='tu'?'gioca ':'') + (sel?'sel':''));
     e.onclick = ()=> clickCarta(c);
     mn.appendChild(e);
+  });
+
+  // FLIP fase 2: ogni carta scivola dalla vecchia posizione alla nuova (mai teletrasporto)
+  document.querySelectorAll('#tavolo .carta, #mano .carta').forEach(el=>{
+    const id = el.dataset.id;
+    const old = prima[id] || LASTPOS[id];
+    delete LASTPOS[id];
+    const now = el.getBoundingClientRect();
+    if(old){
+      const dx = old.left - now.left, dy = old.top - now.top;
+      if(Math.abs(dx)>2 || Math.abs(dy)>2){
+        el.style.transition = 'none';
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        requestAnimationFrame(()=>{
+          el.style.transition = 'transform .32s ease';
+          el.style.transform = '';
+          setTimeout(()=>{ el.style.transition=''; }, 380);
+        });
+      }
+    } else {
+      // carta nuova: appare in dissolvenza
+      el.style.opacity = '0';
+      requestAnimationFrame(()=>{
+        el.style.transition = 'opacity .3s ease';
+        el.style.opacity = '1';
+        setTimeout(()=>{ el.style.transition=''; el.style.opacity=''; }, 360);
+      });
+    }
   });
 }
 
