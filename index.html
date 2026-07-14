@@ -51,6 +51,7 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
   background:var(--oro);color:#2b2110;border:0;border-radius:9px;
   padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--ombra);
 }
+.btn:disabled{opacity:.35;pointer-events:none;box-shadow:none}
 .btn.ghost{background:rgba(255,255,255,.14);color:#fff;box-shadow:none;font-weight:600}
 
 .zona{margin:4px 0}
@@ -957,9 +958,10 @@ function render(){
 
   const tv = document.getElementById('tavolo');
   tv.innerHTML='';
-  const evid = new Set((d.scelta && d.scelta.evid) ? d.scelta.evid : []);
+  const evid = (d.scelta && d.scelta.selIds) ? d.scelta.selIds : new Set();
   d.tavolo.forEach(c=>{
     const e = cartaEl(c,'small' + (evid.has(c.id)?' evid':''));
+    if(d.scelta) e.onclick = ()=> toggleTavolo(c.id);
     tv.appendChild(e);
   });
   if(!d.tavolo.length){
@@ -1013,6 +1015,16 @@ function setMsg(html){ document.getElementById('msg').innerHTML = html; }
 function toast(t){ setMsg(`<span class="ok">${t}</span>`); }
 
 /* ============ INTERAZIONE ============ */
+function migliorePresa(carta, opts){
+  let best=null;
+  for(const o of opts){
+    let sc = valutaPresa([carta, ...o.cards]);
+    if(o.cards.length===ST.d.tavolo.length && carta.v!==1) sc += 9; // preferisci la scopa
+    if(!best || sc>best.sc) best={sc, o};
+  }
+  return best.o;
+}
+
 function clickCarta(c){
   const d = ST.d;
   if(ST.fine || d.turno!=='tu' || BUSY) return;
@@ -1031,57 +1043,71 @@ function clickCarta(c){
     return;
   }
 
-  opts.sort((a,b)=>b.cards.length-a.cards.length);
-  d.scelta = {carta:c, opts, sel:0, evid:opts[0].cards.map(x=>x.id)};
+  // più alternative: preseleziono la migliore, poi si cambia toccando le carte sul tavolo
+  const best = migliorePresa(c, opts);
+  d.scelta = { carta:c, opts, selIds:new Set(best.cards.map(x=>x.id)) };
   render();
   disegnaScelte();
 }
 
+function toggleTavolo(id){
+  const d = ST.d;
+  if(!d.scelta || BUSY) return;
+  if(d.scelta.selIds.has(id)) d.scelta.selIds.delete(id);
+  else d.scelta.selIds.add(id);
+  render();
+  aggiornaConferma();
+}
+
+function optValida(){
+  const d = ST.d;
+  if(!d.scelta) return null;
+  const key = [...d.scelta.selIds].sort((a,b)=>a-b).join(',');
+  return d.scelta.opts.find(o => o.cards.map(x=>x.id).sort((a,b)=>a-b).join(',')===key) || null;
+}
+
 function disegnaScelte(){
   const d = ST.d;
-  const { carta:c, opts, sel } = d.scelta;
   const box = document.getElementById('scelte');
   box.innerHTML='';
-
-  setMsg(`Con <b>${nomeCarta(c)}</b> puoi prendere in ${opts.length} modi. Tocca un'opzione, poi conferma.`);
-
-  opts.forEach((o,i)=>{
-    const b = document.createElement('div');
-    b.className = 'scelta' + (i===sel ? ' scelta-sel' : '');
-    b.innerHTML = `<span>${i===sel?'✓ ':''}${o.cards.map(nomeCarta).join(' + ')}</span><span class="tag">${o.tipo.toUpperCase()}</span>`;
-    b.onclick = ()=>{
-      d.scelta.sel = i;
-      d.scelta.evid = o.cards.map(x=>x.id);
-      render();
-      disegnaScelte();
-    };
-    box.appendChild(b);
-  });
+  setMsg(`Con <b>${nomeCarta(d.scelta.carta)}</b> puoi prendere in più modi: tocca le carte sul tavolo per cambiare, poi conferma.`);
 
   const barra = document.createElement('div');
   barra.className = 'scelte-barra';
   const conf = document.createElement('button');
   conf.className = 'btn';
+  conf.id = 'btnConfermaPresa';
   conf.textContent = '✓ Conferma presa';
   conf.onclick = ()=>{
     if(BUSY) return;
-    const scelto = opts[d.scelta.sel];
+    const o = optValida();
+    if(!o) return;
+    const carta = d.scelta.carta;
     box.innerHTML='';
-    d.scelta=null;
-    esegui('tu', c, scelto);
+    d.scelta = null;
+    esegui('tu', carta, o);
   };
   const ann = document.createElement('button');
   ann.className = 'btn ghost';
   ann.textContent = 'Annulla';
   ann.onclick = ()=>{
     box.innerHTML='';
-    d.scelta=null;
+    d.scelta = null;
     render();
     setMsg('Tocca una carta della tua mano.');
   };
   barra.appendChild(conf);
   barra.appendChild(ann);
   box.appendChild(barra);
+  aggiornaConferma();
+}
+
+function aggiornaConferma(){
+  const b = document.getElementById('btnConfermaPresa');
+  if(!b) return;
+  const o = optValida();
+  b.disabled = !o;
+  b.textContent = o ? `✓ Conferma presa (${o.tipo})` : '✓ Conferma presa';
 }
 
 /* ============ REGOLE ============ */
