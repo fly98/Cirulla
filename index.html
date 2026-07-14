@@ -134,7 +134,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 
 /* ===== iPhone / schermi stretti: tutto visibile senza scroll ===== */
 @media (max-width: 540px){
-  body{padding:env(safe-area-inset-top) 4px env(safe-area-inset-bottom)}
+  body{padding:calc(env(safe-area-inset-top) + 6px) 4px env(safe-area-inset-bottom)}
   header{padding:4px 2px}
   h1{font-size:13px;letter-spacing:1px}
   h1 small{font-size:7px}
@@ -173,6 +173,12 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   td.n{font-size:14.5px}
   .tot.big td{font-size:16px}
   .btn-big{font-size:15px;padding:11px 14px}
+}
+
+/* Web app avviata dalla home (standalone): la barra di stato non c'è,
+   serve spazio garantito per non finire sotto la pillola / Dynamic Island */
+@media (max-width: 540px) and (display-mode: standalone){
+  body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
 }
 </style>
 </head>
