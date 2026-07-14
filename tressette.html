@@ -511,16 +511,17 @@ async function gioca(p, carta){
     if(!d.pescateNote) d.pescateNote = {tu:[], cpu:[]};
 
     render();
-    setMsg(`${vinc==='tu'?'Peschi':'La CPU pesca'} <b>${nomeCarta(cartaV)}</b>…`);
-    await animaPescata(vinc, cartaV);
+    setMsg(`${vinc==='tu'?'Peschi':'La CPU pesca'} <b>${nomeCarta(cartaV)}</b> · ${perd==='tu'?'peschi':'la CPU pesca'} <b>${nomeCarta(cartaP)}</b>.`);
+    // entrambe le pescate in contemporanea (il perdente con un filo di ritardo per staccarsi dal mazzetto)
+    await Promise.all([
+      animaPescata(vinc, cartaV),
+      (async()=>{ await sleep(160); await animaPescata(perd, cartaP); })()
+    ]);
     d.mani[vinc].push(cartaV);
     d.pescateNote[vinc].push(cartaV.id);
-    render();
-
-    setMsg(`${perd==='tu'?'Peschi':'La CPU pesca'} <b>${nomeCarta(cartaP)}</b>.`);
-    await animaPescata(perd, cartaP);
     d.mani[perd].push(cartaP);
     d.pescateNote[perd].push(cartaP.id);
+    render();
 
     if(cartaV.v===1) addFortuna(vinc==='tu'?0.5:-0.5, `Asso pescato ${vinc==='tu'?'da te':'dalla CPU'} (+0.5)`);
     if(cartaP.v===1) addFortuna(perd==='tu'?0.5:-0.5, `Asso pescato ${perd==='tu'?'da te':'dalla CPU'} (+0.5)`);
