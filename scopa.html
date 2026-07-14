@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scopa">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="theme-color" content="#0b4d2c">
+<title>Scopa · FlyGames</title>
+<style>
+:root{
+  --feltro:#0e6b3d;
+  --feltro-scuro:#0a4a2a;
+  --oro:#e8c266;
+  --carta:#fdfaf3;
+  --testo:#1c2b22;
+  --ombra:0 4px 10px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  background:#06301b;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:#fff;
+  display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) 8px env(safe-area-inset-bottom);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* il tavolo copre SEMPRE tutto lo schermo, sforando oltre le safe area */
+body::before{
+  content:'';
+  position:fixed;
+  top:-90px; left:-40px; right:-40px; bottom:-90px;
+  background:#06301b url('cards/tavolo.jpg') center/cover no-repeat;
+  z-index:-1;
+}
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 4px;gap:8px;
+}
+h1{font-size:17px;margin:0;letter-spacing:2px;font-weight:700;color:var(--oro)}
+h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weight:400}
+.punti{display:flex;gap:6px;font-size:11px}
+.chip{background:rgba(0,0,0,.28);border-radius:10px;padding:5px 9px;text-align:center;line-height:1.25}
+.chip b{display:block;font-size:15px;color:var(--oro)}
+.btn{
+  background:var(--oro);color:#2b2110;border:0;border-radius:9px;
+  padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--ombra);
+}
+.btn:disabled{opacity:.35;pointer-events:none;box-shadow:none}
+.btn.ghost{background:rgba(255,255,255,.14);color:#fff;box-shadow:none;font-weight:600}
+
+.zona{margin:4px 0}
+.etichetta{font-size:10px;letter-spacing:1.5px;color:#9fd3b5;text-transform:uppercase;margin:2px 4px}
+.cpu-hand{display:flex;gap:8px;justify-content:center;min-height:184px;align-items:center}
+.retro{
+  width:104px;height:175px;border-radius:9px;
+  background:#e9e6dc url('cards/dorso.jpg') center/cover no-repeat;
+  border:2px solid #f0e0c0;box-shadow:var(--ombra);
+}
+.tavolo{
+  display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
+  min-height:270px;padding:12px 8px;
+  background:rgba(0,0,0,.14);border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+}
+.mano{display:flex;gap:14px;justify-content:center;min-height:320px;align-items:flex-end;padding:6px 0 2px}
+
+.carta{
+  width:176px;height:296px;border-radius:11px;background:#fff;color:var(--testo);
+  box-shadow:var(--ombra);position:relative;cursor:pointer;overflow:hidden;
+  border:1px solid #d8cfb8;transition:transform .12s, box-shadow .12s;
+  user-select:none;
+}
+.carta .face{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.carta.small{width:140px;height:236px;border-radius:8px}
+.mano .carta:active{transform:translateY(-6px)}
+.carta.sel{transform:translateY(-10px);box-shadow:0 0 0 3px var(--oro),var(--ombra)}
+.carta.evid{box-shadow:0 0 0 3px #59d98a,var(--ombra)}
+.carta.gioca{animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
+.settebello::after{content:"★";position:absolute;top:6px;right:8px;font-size:16px;color:var(--oro);text-shadow:0 0 4px #000,0 0 4px #000;z-index:2}
+
+.carta.flying{cursor:default;pointer-events:none}
+.presa-evid{box-shadow:0 0 0 5px #59d98a,0 0 22px 8px rgba(89,217,138,.7),var(--ombra)!important;transform:translateY(-8px);transition:box-shadow .25s,transform .25s}
+
+.msg{
+  min-height:34px;text-align:center;font-size:13px;padding:7px 10px;
+  background:rgba(0,0,0,.25);border-radius:10px;margin:4px 0;line-height:1.35;
+}
+.msg .ok{color:#8ff0b0;font-weight:700}
+.msg .no{color:#ffb3a7;font-weight:700}
+
+.scelte{display:flex;flex-direction:column;gap:6px;margin:6px 0}
+.scelta{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);
+  border-radius:9px;padding:9px 11px;font-size:13px;cursor:pointer;display:flex;
+  justify-content:space-between;align-items:center;gap:8px;
+}
+.scelta:active{background:rgba(232,194,102,.25)}
+.scelta.scelta-sel{background:rgba(232,194,102,.3);border-color:var(--oro);box-shadow:0 0 0 1px var(--oro) inset}
+.scelta .tag{font-size:10px;color:var(--oro);letter-spacing:1px;white-space:nowrap}
+.scelte-barra{display:flex;gap:10px;margin-top:2px}
+.scelte-barra .btn{flex:1}
+
+.footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
+
+.bussata{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);
+  background:#12492f;border:2px solid var(--oro);border-radius:16px;
+  padding:22px 30px;z-index:70;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6);
+  opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;
+  max-width:80vw;
+}
+.bussata.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.bussata .pugno{font-size:44px;line-height:1;margin-bottom:8px}
+.bussata .titolo{font-size:20px;font-weight:800;color:var(--oro);letter-spacing:1px;margin-bottom:4px}
+.bussata .dett{font-size:14px;color:#ddefe4}
+
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
+  align-items:center;justify-content:center;padding:18px;z-index:50;
+}
+.overlay.on{display:flex}
+.card-modal{
+  background:#12492f;border:1px solid rgba(232,194,102,.4);border-radius:16px;
+  padding:22px;max-width:560px;width:100%;max-height:88vh;overflow:auto;box-shadow:var(--ombra);
+}
+.card-modal h2{margin:0 0 12px;font-size:24px;color:var(--oro)}
+table{width:100%;border-collapse:collapse;font-size:16px;margin-bottom:14px}
+th,td{padding:9px 6px;text-align:left;border-bottom:1px solid rgba(255,255,255,.12)}
+th{color:#9fd3b5;font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:1px}
+td.n{text-align:right;font-variant-numeric:tabular-nums;font-size:17px}
+.tot{font-weight:800;color:var(--oro)}
+.tot.big td{font-size:20px;padding:11px 6px}
+tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
+.btn-big{font-size:17px;padding:13px 20px;width:100%;margin-top:4px}
+.regole{font-size:13.5px;line-height:1.6;color:#ddefe4}
+.regole li{margin-bottom:6px}
+
+/* ===== iPhone / schermi stretti: tutto visibile senza scroll ===== */
+@media (max-width: 540px){
+  body{padding:calc(env(safe-area-inset-top) + 6px) 4px env(safe-area-inset-bottom)}
+  header{padding:4px 2px}
+  h1{font-size:13px;letter-spacing:1px}
+  h1 small{font-size:7px}
+  .chip{padding:3px 6px;font-size:9px;border-radius:7px}
+  .chip b{font-size:12px}
+  .btn{padding:6px 9px;font-size:11px}
+  .zona{margin:2px 0}
+  .etichetta{font-size:8px;margin:1px 3px}
+
+  .cpu-hand{gap:5px;min-height:124px}
+  .retro{width:70px;height:118px;border-radius:7px;border-width:1.5px}
+
+  .tavolo{gap:4px;min-height:168px;padding:8px 6px;border-radius:10px}
+  .mano{gap:8px;min-height:208px;padding:3px 0 1px}
+
+  /* larghezza fluida: la mano tiene 3 carte, il tavolo esattamente 4 per riga (5+ vanno a capo) */
+  .carta{width:calc((100vw - 44px)/3);max-width:130px;height:auto;aspect-ratio:0.59;border-radius:8px}
+  .carta.small{width:calc((100vw - 36px)/4);max-width:106px;height:auto;aspect-ratio:0.59;border-radius:7px}
+  .settebello::after{top:3px;right:5px;font-size:14px}
+
+  .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:2px 0}
+  .scelta{padding:7px 8px;font-size:11.5px}
+  .scelta .tag{font-size:8.5px}
+  .scelte-barra .btn{padding:9px 10px;font-size:12px}
+  .footer{font-size:9px;padding:4px 2px 8px}
+
+  .bussata{padding:16px 20px}
+  .bussata .pugno{font-size:34px}
+  .bussata .titolo{font-size:16px}
+  .bussata .dett{font-size:12px}
+
+  .card-modal{padding:14px;max-height:90vh}
+  .card-modal h2{font-size:19px}
+  table{font-size:13.5px}
+  th,td{padding:7px 4px}
+  td.n{font-size:14.5px}
+  .tot.big td{font-size:16px}
+  .btn-big{font-size:15px;padding:11px 14px}
+}
+
+/* Web app avviata dalla home (standalone): la barra di stato non c'è,
+   serve spazio garantito per non finire sotto la pillola / Dynamic Island */
+@media (max-width: 540px) and (display-mode: standalone){
+  body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SCOPA<small>classica · a 11</small></h1>
+  <div class="punti">
+    <div class="chip">TU<b id="pTu">0</b></div>
+    <div class="chip">CPU<b id="pCpu">0</b></div>
+    <div class="chip">MAZZO<b id="pMazzo">40</b></div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="btn" id="btnNuova">Nuova</button>
+    <button class="btn ghost" id="btnMenu">☰</button>
+    <button class="btn ghost" id="btnRegole">?</button>
+  </div>
+</header>
+
+<div class="zona">
+  <div class="etichetta">CPU · <span id="cpuInfo">—</span></div>
+  <div class="cpu-hand" id="cpuHand"></div>
+</div>
+
+<div class="zona">
+  <div class="etichetta">Tavolo</div>
+  <div class="tavolo" id="tavolo"></div>
+</div>
+
+<div class="msg" id="msg">Tocca <b>Nuova partita</b> per cominciare.</div>
+<div class="scelte" id="scelte"></div>
+
+<div class="zona">
+  <div class="etichetta">La tua mano · <span id="tuInfo">—</span></div>
+  <div class="mano" id="mano"></div>
+</div>
+
+<div class="footer">
+  <span id="statoPrese">Prese: tu 0 · cpu 0</span>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card-modal" id="modalBody"></div>
+</div>
+
+<div class="bussata" id="bussata">
+  <div class="pugno">✊</div>
+  <div class="titolo" id="busTitolo"></div>
+  <div class="dett" id="busDett"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ============ MODELLO ============ */
+const SEMI = [
+  {k:'d', nome:'Denari',  cls:'d'},
+  {k:'c', nome:'Coppe',   cls:'c'},
+  {k:'s', nome:'Spade',   cls:'sp'},
+  {k:'b', nome:'Bastoni', cls:'b'}
+];
+const RANK_LABEL = {1:'A',2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'F',9:'C',10:'R'};
+const RANK_NOME  = {1:'Asso',2:'Due',3:'Tre',4:'Quattro',5:'Cinque',6:'Sei',7:'Sette',8:'Fante',9:'Cavallo',10:'Re'};
+const PRIMIERA = {7:21,6:18,1:16,5:15,4:14,3:13,2:12,8:10,9:10,10:10};
+
+let ST = null;
+
+function nuovoMazzo(){
+  const m = [];
+  let id = 0;
+  for(const s of SEMI) for(let v=1; v<=10; v++) m.push({id:id++, v, s:s.k});
+  for(let i=m.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [m[i],m[j]]=[m[j],m[i]]; }
+  return m;
+}
+const semeOf = k => SEMI.find(x=>x.k===k);
+const nomeCarta = c => `${RANK_NOME[c.v]} di ${semeOf(c.s).nome}`;
+const isSettebello = c => c.v===7 && c.s==='d';
+
+/* ============ PRESE ============ */
+// Tutti i sottoinsiemi del tavolo (max 10-12 carte -> ok)
+function sottoinsiemi(arr){
+  const out=[];
+  const n=arr.length;
+  for(let mask=1; mask<(1<<n); mask++){
+    const s=[];
+    for(let i=0;i<n;i++) if(mask&(1<<i)) s.push(arr[i]);
+    out.push(s);
+  }
+  return out;
+}
+
+// Opzioni di presa per la carta c sul tavolo t (SCOPA):
+// se in tavola c'e' una carta uguale, DEVI prendere quella (precedenza sulle somme)
+function opzioniPresa(c, t){
+  const opts=[];
+  const key = s => s.map(x=>x.id).sort((a,b)=>a-b).join(',');
+  const visti = new Set();
+  const push = (cards, tipo) => {
+    const k = key(cards);
+    if(visti.has(k)) return;
+    visti.add(k);
+    opts.push({cards, tipo});
+  };
+
+  if(t.length===0) return opts;
+
+  const uguali = t.filter(x=>x.v===c.v);
+  if(uguali.length){
+    for(const u of uguali) push([u], 'uguale');
+    return opts;   // la carta uguale ha precedenza: le somme non sono ammesse
+  }
+  const subs = sottoinsiemi(t);
+  for(const s of subs){
+    const somma = s.reduce((a,x)=>a+x.v,0);
+    if(s.length>1 && somma===c.v) push(s,'somma');
+  }
+  return opts;
+}
+
+/* ============ SETUP PARTITA / SMAZZATA ============ */
+function nuovaPartita(){
+  let liv = 'medio';
+  try{ liv = localStorage.getItem('scopa_livello') || 'medio'; }catch(e){}
+  ST = {
+    tot:{tu:0,cpu:0},
+    mazziere:'cpu',       // il primo di mano è chi sta a destra del mazziere = tu
+    fine:false,
+    fortunaTot:0,
+    smazzate:0,
+    livello: liv
+  };
+  document.getElementById('pTu').textContent=0;
+  document.getElementById('pCpu').textContent=0;
+  nuovaSmazzata();
+}
+
+function nuovaSmazzata(){
+  BUSY = false;
+  let mazzo, tavolo;
+  let tentativi=0;
+  do{
+    mazzo = nuovoMazzo();
+    tavolo = mazzo.splice(0,4);
+    tentativi++;
+  } while(tavolo.filter(c=>c.v===10).length>=3 && tentativi<50); // 3 o piu' re in tavola -> si rimescola
+
+  ST.d = {
+    mazzo, tavolo,
+    mani:{tu:[],cpu:[]},
+    prese:{tu:[],cpu:[]},
+    scope:{tu:0,cpu:0},
+    ultimaPresa:null,
+    turno:(ST.mazziere==='cpu')?'tu':'cpu',
+    scelta:null,
+    attesa:false,
+    fortuna:0,
+    fortunaLog:[]
+  };
+
+  distribuisci();
+  render();
+  setMsg('Tocca una carta della tua mano.');
+  if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
+}
+
+function addFortuna(delta, txt){
+  const d = ST.d;
+  if(!d) return;
+  d.fortuna += delta;
+  d.fortunaLog.push({delta, txt});
+}
+
+function distribuisci(){
+  const d = ST.d;
+  const primo = (ST.mazziere==='cpu')?'tu':'cpu';
+  const secondo = (primo==='tu')?'cpu':'tu';
+  const date = {tu:[], cpu:[]};
+  for(let i=0;i<3;i++){
+    if(d.mazzo.length){ const c=d.mazzo.shift(); d.mani[primo].push(c); date[primo].push(c); }
+    if(d.mazzo.length){ const c=d.mazzo.shift(); d.mani[secondo].push(c); date[secondo].push(c); }
+  }
+  // Fortuna della pesca: settebello e sette (pesano su settebello e primiera)
+  for(const p of ['tu','cpu']){
+    const segno = (p==='tu')?1:-1;
+    for(const c of date[p]){
+      if(isSettebello(c)) addFortuna(0.5*segno, `Settebello pescato ${p==='tu'?'da te':'dalla CPU'} (${p==='tu'?'+':'-'}0.5)`);
+      else if(c.v===7) addFortuna(0.3*segno, `Sette pescato ${p==='tu'?'da te':'dalla CPU'} (${p==='tu'?'+':'-'}0.3)`);
+    }
+  }
+}
+
+let busTimer = null;
+function mostraBussata(titolo, dettaglio){
+  const el = document.getElementById('bussata');
+  document.getElementById('busTitolo').textContent = titolo;
+  document.getElementById('busDett').textContent = dettaglio;
+  el.classList.add('on');
+  clearTimeout(busTimer);
+  busTimer = setTimeout(()=> el.classList.remove('on'), 2800);
+}
+
+/* ============ GIOCATA ============ */
+async function esegui(p, carta, presa){
+  if(BUSY) return;
+  BUSY = true;
+  const d = ST.d;
+
+  // 1) Animazione: con presa la carta vola dritta sulle carte che prende; senza presa si posa al centro
+  d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
+  let txt = `${p==='tu'?'Giochi':'CPU gioca'} ${nomeCarta(carta)}`;
+  await animaGiocataEPresa(p, carta, presa);
+
+  if(presa && presa.cards.length){
+    const ids = new Set(presa.cards.map(c=>c.id));
+    d.tavolo = d.tavolo.filter(c=>!ids.has(c.id));
+    const tutte = [carta, ...presa.cards];
+    d.prese[p].push(...tutte);
+    d.ultimaPresa = p;
+    txt += ` e prend${p==='tu'?'i':'e'} ${presa.cards.map(nomeCarta).join(' + ')} <span class="ok">(${presa.tipo})</span>`;
+
+    const ultimaGiocata = d.mazzo.length===0 && d.mani.tu.length===0 && d.mani.cpu.length===0;
+    if(d.tavolo.length===0 && !ultimaGiocata){
+      d.scope[p]++;
+      txt += ` <span class="ok">SCOPA!</span>`;
+      mostraBussata(p==='tu' ? 'SCOPA! 🧹' : 'Scopa della CPU 🧹', `${nomeCarta(carta)} svuota il tavolo`);
+    }
+  } else {
+    d.tavolo.push(carta);
+    txt += ` (nessuna presa)`;
+  }
+
+  setMsg(txt);
+  d.turno = (p==='tu')?'cpu':'tu';
+  render();
+
+  // Fine mano da 3 -> ridistribuisci
+  if(d.mani.tu.length===0 && d.mani.cpu.length===0){
+    if(d.mazzo.length>0){
+      setTimeout(()=>{
+        distribuisci(); render(); BUSY=false;
+        if(d.turno==='cpu') setTimeout(turnoCpu,800);
+      }, 700);
+      return;
+    } else {
+      BUSY=false;
+      setTimeout(fineSmazzata, 900);
+      return;
+    }
+  }
+  BUSY=false;
+  if(d.turno==='cpu') setTimeout(turnoCpu, 850);
+}
+
+/* ============ IA CPU — tre livelli ============ */
+function valutaPresa(cards){
+  let v = cards.length*1.0;
+  for(const c of cards){
+    if(isSettebello(c)) v += 12;
+    if(c.s==='d') v += 1.6;
+    if(c.v===7) v += 1.4;
+    if(c.v===6) v += 0.8;
+    if(c.v===1) v += 0.4;
+  }
+  return v;
+}
+
+function turnoCpu(){
+  const d = ST.d;
+  if(!d || d.turno!=='cpu' || ST.fine || BUSY) return;
+  const mano = d.mani.cpu;
+  if(!mano.length) return;
+
+  const liv = ST.livello || 'medio';
+  if(liv==='facile') return cpuFacile();
+  if(liv==='difficile') return cpuDifficile();
+  return cpuMedio();
+}
+
+/* --- FACILE: conosce le regole, zero strategia --- */
+function cpuFacile(){
+  const d = ST.d;
+  const mano = d.mani.cpu;
+  const carta = mano[(Math.random()*mano.length)|0];
+  const opts = opzioniPresa(carta, d.tavolo);
+  if(opts.length){
+    esegui('cpu', carta, opts[(Math.random()*opts.length)|0]);
+  } else {
+    esegui('cpu', carta, null);
+  }
+}
+
+/* --- MEDIO: euristica strategica --- */
+function cpuMedio(){
+  const d = ST.d;
+  const mano = d.mani.cpu;
+
+  let best=null;
+  for(const c of mano){
+    const opts = opzioniPresa(c, d.tavolo);
+    for(const o of opts){
+      const tutte=[c,...o.cards];
+      let sc = valutaPresa(tutte) + valutaPresa([c])*0.4;
+      const restano = d.tavolo.length - o.cards.length;
+      const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
+      if(restano===0 && !ultima) sc += 9;   // scopa
+      if(!best || sc>best.sc) best={sc, carta:c, presa:o};
+    }
+  }
+  if(best){ esegui('cpu', best.carta, best.presa); return; }
+
+  // Nessuna presa: scarta la carta meno pericolosa/preziosa
+  let peggio=null;
+  for(const c of mano){
+    let rischio = 0;
+    rischio += (15 - c.v) * 0.05;
+    rischio += isSettebello(c) ? 20 : 0;
+    rischio += (c.s==='d') ? 2.2 : 0;
+    rischio += (c.v===7) ? 1.8 : 0;
+    rischio += (c.v===6) ? 1.0 : 0;
+    const nuovoTot = d.tavolo.reduce((a,x)=>a+x.v,0) + c.v;
+    if(nuovoTot===15) rischio += 3;
+    if(!peggio || rischio<peggio.r) peggio={r:rischio, carta:c};
+  }
+  esegui('cpu', peggio.carta, null);
+}
+
+/* --- DIFFICILE: memoria delle carte uscite + probabilità --- */
+// Carte che la CPU NON ha visto: il resto del mazzo + la tua mano.
+// (viste: le sue carte, il tavolo, tutte le prese di entrambi)
+function nonVistePerValore(){
+  const d = ST.d;
+  const cnt = Array(11).fill(4);
+  for(const c of [...d.prese.tu, ...d.prese.cpu, ...d.tavolo, ...d.mani.cpu]) cnt[c.v]--;
+  const tot = cnt.reduce((a,b)=>a+b,0);
+  return {cnt, tot};
+}
+
+// Probabilità (approssimata) che l'avversario possa prendere qualcosa su questo tavolo
+function rischioTavolo(tavolo){
+  const d = ST.d;
+  const {cnt, tot} = nonVistePerValore();
+  const nemico = d.mani.tu.length;
+  if(!nemico || !tot || !tavolo.length) return {p:0, dannoAtteso:0};
+
+  let utili = 0;         // quante carte non viste permetterebbero una presa
+  let dannoMax = 0;      // valore della presa peggiore che potremmo regalare
+  for(let v=1; v<=10; v++){
+    if(!cnt[v]) continue;
+    const opts = opzioniPresa({v, s:'x', id:-1}, tavolo);
+    if(opts.length){
+      utili += cnt[v];
+      for(const o of opts){
+        let val = valutaPresa(o.cards);
+        if(o.cards.length===tavolo.length) val += 9;  // ci farebbe scopa
+        if(val>dannoMax) dannoMax = val;
+      }
+    }
+  }
+  // p ≈ probabilità che almeno una delle carte in mano al nemico sia "utile"
+  const p = Math.min(1, 1 - Math.pow(1 - utili/tot, nemico));
+  return {p, dannoAtteso: p*dannoMax};
+}
+
+function cpuDifficile(){
+  const d = ST.d;
+  const mano = d.mani.cpu;
+  const mosse = [];
+
+  for(const c of mano){
+    const opts = opzioniPresa(c, d.tavolo);
+    if(opts.length){
+      for(const o of opts){
+        const tutte=[c,...o.cards];
+        let sc = valutaPresa(tutte) + valutaPresa([c])*0.4;
+        const restano = d.tavolo.length - o.cards.length;
+        const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
+        if(restano===0 && !ultima) sc += 9;
+        // guarda avanti: quanto è pericoloso il tavolo che lascio?
+        const ids = new Set(o.cards.map(x=>x.id));
+        const tavoloDopo = d.tavolo.filter(x=>!ids.has(x.id));
+        sc -= rischioTavolo(tavoloDopo).dannoAtteso * 0.7;
+        mosse.push({sc, carta:c, presa:o});
+      }
+    } else {
+      // scarto: rischio calcolato sulle carte realmente ancora in giro
+      const tavoloDopo = [...d.tavolo, c];
+      const r = rischioTavolo(tavoloDopo);
+      let sc = -r.dannoAtteso;
+      sc -= isSettebello(c) ? 14 : 0;      // mai regalare il settebello se evitabile
+      sc -= (c.s==='d') ? 1.6 : 0;
+      sc -= (c.v===7) ? 1.2 : 0;
+      mosse.push({sc, carta:c, presa:null});
+    }
+  }
+
+  mosse.sort((a,b)=>b.sc-a.sc);
+  const m = mosse[0];
+  esegui('cpu', m.carta, m.presa);
+}
+
+/* ============ FINE SMAZZATA / PUNTEGGIO ============ */
+function fineSmazzata(){
+  const d = ST.d;
+  if(d.tavolo.length && d.ultimaPresa){
+    d.prese[d.ultimaPresa].push(...d.tavolo);
+    d.tavolo=[];
+  }
+  const conta = p => {
+    const cs = d.prese[p];
+    const denari = cs.filter(c=>c.s==='d').length;
+    const sette = cs.some(isSettebello);
+    let prim=0;
+    for(const s of SEMI){
+      const best = Math.max(0, ...cs.filter(c=>c.s===s.k).map(c=>PRIMIERA[c.v]));
+      prim += best;
+    }
+    return {carte:cs.length, denari, sette, prim, scope:d.scope[p]};
+  };
+  const a = conta('tu'), b = conta('cpu');
+  let pt = {tu:d.scope.tu, cpu:d.scope.cpu};
+  const righe=[];
+  const dai=(nome, chi)=>{ if(chi) pt[chi]++; righe.push({nome, tu:(chi==='tu')?1:0, cpu:(chi==='cpu')?1:0}); };
+
+  dai('Carte',   a.carte>b.carte ? 'tu' : (b.carte>a.carte?'cpu':null));
+  dai('Denari',  a.denari>b.denari ? 'tu' : (b.denari>a.denari?'cpu':null));
+  dai('Settebello', a.sette?'tu':(b.sette?'cpu':null));
+  dai('Primiera', a.prim>b.prim ? 'tu' : (b.prim>a.prim?'cpu':null));
+
+  ST.tot.tu += pt.tu;
+  ST.tot.cpu += pt.cpu;
+  ST.fortunaTot += d.fortuna;
+  ST.smazzate++;
+
+  const rigaEvid = (nome, vTu, vCpu) =>
+    `<tr class="evid"><td>${nome}</td><td class="n">${vTu||'—'}</td><td class="n">${vCpu||'—'}</td></tr>`;
+
+  const html = `
+   <h2>Fine smazzata</h2>
+   <table>
+     <tr><th>Punto</th><th class="n">Tu</th><th class="n">CPU</th></tr>
+     ${righe.map(r=>`<tr><td>${r.nome}</td><td class="n">${r.tu||'—'}</td><td class="n">${r.cpu||'—'}</td></tr>`).join('')}
+     ${(d.scope.tu||d.scope.cpu) ? rigaEvid('🧹 Scope', d.scope.tu, d.scope.cpu) : ''}
+     <tr class="tot"><td>Totale smazzata</td><td class="n">${pt.tu}</td><td class="n">${pt.cpu}</td></tr>
+     <tr class="tot big"><td>PARTITA</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
+   </table>
+   <div style="font-size:13px;color:#bfe0cd;margin-bottom:12px">
+     Carte ${a.carte}–${b.carte} · Denari ${a.denari}–${b.denari} · Primiera ${a.prim}–${b.prim}
+   </div>`;
+
+  const sfigaHtml = buildSfiga(d.fortuna, 'Indice di sfiga (questa mano)',
+    d.fortunaLog.length ? d.fortunaLog.map(e=>`${e.delta>0?'▲':'▼'} ${e.txt}`).join('<br>') : 'Nessun colpo di fortuna in questa mano.');
+
+  const vinceTu = ST.tot.tu>=11, vinceCpu = ST.tot.cpu>=11;
+  let coda;
+  if(vinceTu || vinceCpu){
+    let esito;
+    if(vinceTu && vinceCpu) esito = (ST.tot.tu>ST.tot.cpu) ? 'Hai vinto tu! 🏆' : (ST.tot.cpu>ST.tot.tu ? 'Vince la CPU 🤖' : 'Pareggio: si continua!');
+    else esito = vinceTu ? 'Hai vinto tu! 🏆' : 'Vince la CPU 🤖';
+    if(esito.startsWith('Pareggio')){
+      coda = `<p class="tot big" style="font-size:22px">${esito}</p><button class="btn btn-big" onclick="chiudiModal(true)">Continua</button>`;
+    } else {
+      ST.fine=true;
+      registraStorico();
+      const sfigaPartita = buildSfiga(ST.fortunaTot, `Indice di sfiga — intera partita (${ST.smazzate} mani)`,
+        `Somma della fortuna di tutte le mani: ${ST.fortunaTot>0?'+':''}${Math.round(ST.fortunaTot*10)/10}`);
+      coda = `<p class="tot big" style="font-size:24px;margin:10px 0">${esito}</p>` + sfigaPartita +
+        `<button class="btn btn-big" onclick="chiudiModal(false);nuovaPartita()">Nuova partita</button>`;
+    }
+  } else {
+    coda = `<button class="btn btn-big" onclick="chiudiModal(true)">Smazzata successiva</button>`;
+  }
+
+  document.getElementById('pTu').textContent = ST.tot.tu;
+  document.getElementById('pCpu').textContent = ST.tot.cpu;
+  apriModal(html + sfigaHtml + coda);
+}
+
+function buildSfiga(F, titolo, dettagli){
+  let label, emoji;
+  if(F>=8){ emoji='🍀🍀🍀'; label='Fortuna sfacciata: così vincerebbe chiunque'; }
+  else if(F>=4){ emoji='🍀'; label='La sorte ti ha sorriso'; }
+  else if(F>-4){ emoji='⚖️'; label='Sorte neutrale: è stato tutto merito (o demerito)'; }
+  else if(F>-8){ emoji='🐈‍⬛'; label='Ti è girata male, poco da dire'; }
+  else { emoji='☠️'; label='Sfiga cosmica: nemmeno Fantozzi'; }
+  const pos = Math.round((Math.max(-10, Math.min(10, F)) + 10) * 5);
+  return `
+   <div style="margin:6px 0 14px">
+     <div style="font-size:13px;color:#9fd3b5;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">${titolo}</div>
+     <div style="position:relative;height:12px;border-radius:6px;background:linear-gradient(90deg,#3d3d3d,#777 45%,#777 55%,#e8c266)">
+       <div style="position:absolute;top:-4px;left:calc(${pos}% - 10px);width:20px;height:20px;border-radius:50%;background:#fdfaf3;border:2px solid #12492f"></div>
+     </div>
+     <div style="display:flex;justify-content:space-between;font-size:11px;color:#9fd3b5;margin-top:3px"><span>☠️ sfiga</span><span>🍀 fortuna</span></div>
+     <div style="font-size:15px;margin-top:7px">${emoji} <b>${label}</b></div>
+     <div style="font-size:12.5px;color:#bfe0cd;margin-top:5px;line-height:1.55">${dettagli}</div>
+   </div>`;
+}
+
+function chiudiModal(prosegui){
+  document.getElementById('overlay').classList.remove('on');
+  if(prosegui && !ST.fine){
+    ST.mazziere = (ST.mazziere==='tu')?'cpu':'tu';
+    nuovaSmazzata();
+  }
+}
+function apriModal(html){
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('overlay').classList.add('on');
+}
+
+/* ============ RENDER ============ */
+function cartaEl(c, cls){
+  const s = semeOf(c.s);
+  const d = document.createElement('div');
+  d.className = 'carta ' + s.cls + (cls?(' '+cls):'') + (isSettebello(c)?' settebello':'');
+  d.title = nomeCarta(c);
+  d.innerHTML = `<img class="face" src="cards/${c.s}${c.v}.jpg" alt="${nomeCarta(c)}" draggable="false">`;
+  d.dataset.id = c.id;
+  return d;
+}
+
+// Ultima posizione nota della carta appena posata (per continuità con l'animazione di volo)
+const LASTPOS = {};
+
+function render(){
+  const d = ST.d;
+  document.getElementById('pMazzo').textContent = d.mazzo.length;
+  document.getElementById('statoPrese').textContent =
+    `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length} — Scope: ${d.scope.tu}–${d.scope.cpu}`;
+  const livLabel = {facile:'😴', medio:'🎯', difficile:'🧠'}[ST.livello||'medio'];
+  document.getElementById('cpuInfo').textContent = `${livLabel} ${d.mani.cpu.length} carte` + (d.turno==='cpu'?' · tocca a lei':'');
+  document.getElementById('tuInfo').textContent  = (d.turno==='tu')?'tocca a te':'attendi…';
+
+  // FLIP fase 1: memorizzo dove sono le carte adesso
+  const prima = {};
+  document.querySelectorAll('#tavolo .carta, #mano .carta').forEach(el=>{
+    if(el.style.visibility!=='hidden') prima[el.dataset.id] = el.getBoundingClientRect();
+  });
+
+  const ch = document.getElementById('cpuHand');
+  ch.innerHTML='';
+  d.mani.cpu.forEach(()=>{ const r=document.createElement('div'); r.className='retro'; ch.appendChild(r); });
+
+  const tv = document.getElementById('tavolo');
+  tv.innerHTML='';
+  const evid = (d.scelta && d.scelta.selIds) ? d.scelta.selIds : new Set();
+  d.tavolo.forEach(c=>{
+    const e = cartaEl(c,'small' + (evid.has(c.id)?' evid':''));
+    if(d.scelta) e.onclick = ()=> toggleTavolo(c.id);
+    tv.appendChild(e);
+  });
+  if(!d.tavolo.length){
+    const p=document.createElement('div');
+    p.style.cssText='font-size:12px;color:#9fd3b5';
+    p.textContent='tavolo vuoto';
+    tv.appendChild(p);
+  }
+
+  const mn = document.getElementById('mano');
+  mn.innerHTML='';
+  d.mani.tu.forEach(c=>{
+    const sel = d.scelta && d.scelta.carta.id===c.id;
+    const e = cartaEl(c, (d.turno==='tu'?'gioca ':'') + (sel?'sel':''));
+    e.onclick = ()=> clickCarta(c);
+    mn.appendChild(e);
+  });
+
+  // FLIP fase 2: ogni carta scivola dalla vecchia posizione alla nuova (mai teletrasporto)
+  document.querySelectorAll('#tavolo .carta, #mano .carta').forEach(el=>{
+    const id = el.dataset.id;
+    const old = prima[id] || LASTPOS[id];
+    delete LASTPOS[id];
+    const now = el.getBoundingClientRect();
+    if(old){
+      const dx = old.left - now.left, dy = old.top - now.top;
+      if(Math.abs(dx)>2 || Math.abs(dy)>2){
+        el.style.transition = 'none';
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        requestAnimationFrame(()=>{
+          el.style.transition = 'transform .32s ease';
+          el.style.transform = '';
+          setTimeout(()=>{ el.style.transition=''; }, 380);
+        });
+      }
+    } else {
+      // carta nuova: appare in dissolvenza
+      el.style.opacity = '0';
+      requestAnimationFrame(()=>{
+        el.style.transition = 'opacity .3s ease';
+        el.style.opacity = '1';
+        setTimeout(()=>{ el.style.transition=''; el.style.opacity=''; }, 360);
+      });
+    }
+  });
+
+  salvaPartita();
+}
+
+function setMsg(html){ document.getElementById('msg').innerHTML = html; }
+function toast(t){ setMsg(`<span class="ok">${t}</span>`); }
+
+/* ============ INTERAZIONE ============ */
+function migliorePresa(carta, opts){
+  let best=null;
+  for(const o of opts){
+    let sc = valutaPresa([carta, ...o.cards]);
+    if(o.cards.length===ST.d.tavolo.length) sc += 9; // preferisci la scopa
+    if(!best || sc>best.sc) best={sc, o};
+  }
+  return best.o;
+}
+
+function clickCarta(c){
+  const d = ST.d;
+  if(ST.fine || d.turno!=='tu' || BUSY) return;
+  const opts = opzioniPresa(c, d.tavolo);
+
+  if(opts.length===0){
+    d.scelta=null;
+    document.getElementById('scelte').innerHTML='';
+    esegui('tu', c, null);
+    return;
+  }
+  if(opts.length===1){
+    d.scelta=null;
+    document.getElementById('scelte').innerHTML='';
+    esegui('tu', c, opts[0]);
+    return;
+  }
+
+  // più alternative: preseleziono la migliore, poi si cambia toccando le carte sul tavolo
+  const best = migliorePresa(c, opts);
+  d.scelta = { carta:c, opts, selIds:new Set(best.cards.map(x=>x.id)) };
+  render();
+  disegnaScelte();
+}
+
+function toggleTavolo(id){
+  const d = ST.d;
+  if(!d.scelta || BUSY) return;
+  if(d.scelta.selIds.has(id)) d.scelta.selIds.delete(id);
+  else d.scelta.selIds.add(id);
+  render();
+  aggiornaConferma();
+}
+
+function optValida(){
+  const d = ST.d;
+  if(!d.scelta) return null;
+  const key = [...d.scelta.selIds].sort((a,b)=>a-b).join(',');
+  return d.scelta.opts.find(o => o.cards.map(x=>x.id).sort((a,b)=>a-b).join(',')===key) || null;
+}
+
+function disegnaScelte(){
+  const d = ST.d;
+  const box = document.getElementById('scelte');
+  box.innerHTML='';
+  setMsg(`Con <b>${nomeCarta(d.scelta.carta)}</b> puoi prendere in più modi: tocca le carte sul tavolo per cambiare, poi conferma.`);
+
+  const barra = document.createElement('div');
+  barra.className = 'scelte-barra';
+  const conf = document.createElement('button');
+  conf.className = 'btn';
+  conf.id = 'btnConfermaPresa';
+  conf.textContent = '✓ Conferma presa';
+  conf.onclick = ()=>{
+    if(BUSY) return;
+    const o = optValida();
+    if(!o) return;
+    const carta = d.scelta.carta;
+    box.innerHTML='';
+    d.scelta = null;
+    esegui('tu', carta, o);
+  };
+  const ann = document.createElement('button');
+  ann.className = 'btn ghost';
+  ann.textContent = 'Annulla';
+  ann.onclick = ()=>{
+    box.innerHTML='';
+    d.scelta = null;
+    render();
+    setMsg('Tocca una carta della tua mano.');
+  };
+  barra.appendChild(conf);
+  barra.appendChild(ann);
+  box.appendChild(barra);
+  aggiornaConferma();
+}
+
+function aggiornaConferma(){
+  const b = document.getElementById('btnConfermaPresa');
+  if(!b) return;
+  const o = optValida();
+  b.disabled = !o;
+  b.textContent = o ? `✓ Conferma presa (${o.tipo})` : '✓ Conferma presa';
+}
+
+/* ============ REGOLE ============ */
+const REGOLE = `
+<h2>Regole (Scopa classica)</h2>
+<div class="regole">
+<ul>
+<li><b>Mazzo 40 carte.</b> A=1 … 7=7, Fante=8, Cavallo=9, Re=10.</li>
+<li>3 carte a testa + 4 in tavola. Se in tavola escono <b>3 o 4 re</b>, si rimescola.</li>
+<li><b>Prese</b>: carta uguale, oppure somma di più carte pari alla tua. <b>La carta uguale ha la precedenza</b>: se c'è, devi prendere quella e non puoi scegliere la somma.</li>
+<li>Se giochi una carta che può prendere, <b>devi</b> prendere; con più alternative equivalenti scegli tu.</li>
+<li><b>Scopa</b>: svuoti il tavolo → 1 punto subito (non vale sull'ultima carta dell'ultima mano).</li>
+<li>A fine mazzo, le carte rimaste in tavola vanno a chi ha fatto l'ultima presa.</li>
+<li><b>Punti a fine smazzata</b>: carte (21+), denari (6+), settebello, primiera, + le scope.</li>
+<li>Vince chi arriva per primo a <b>11 punti</b>; a pari punti si continua.</li>
+</ul>
+</div>
+<button class="btn" onclick="document.getElementById('overlay').classList.remove('on')">Chiudi</button>`;
+
+document.getElementById('btnRegole').onclick = ()=> apriModal(REGOLE);
+document.getElementById('btnNuova').onclick = ()=>{
+  document.getElementById('scelte').innerHTML='';
+  nuovaPartita();
+};
+document.getElementById('overlay').onclick = e=>{
+  if(e.target.id==='overlay') document.getElementById('overlay').classList.remove('on');
+};
+
+avvio();
+</script>
+</body>
+</html>
