@@ -64,10 +64,20 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 }
 .tavolo{
   display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
-  min-height:270px;padding:12px 8px;
+  min-height:270px;padding:12px 8px 12px 96px;
   background:rgba(0,0,0,.14);border-radius:14px;
   border:1px solid rgba(255,255,255,.08);
+  position:relative;
 }
+.mazzetto{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:64px;height:108px;z-index:1}
+.mazzetto .retro{width:100%;height:100%;position:absolute;left:0;top:0}
+.mazzetto .retro:nth-child(2){left:3px;top:-3px}
+.mazzetto .conta{
+  position:absolute;top:-12px;right:-10px;z-index:2;
+  background:var(--oro);color:#2b2110;font-size:13px;font-weight:800;
+  border-radius:11px;padding:3px 9px;box-shadow:var(--ombra);
+}
+.mazzetto.vuoto{opacity:.25}
 .mano{display:flex;gap:14px;justify-content:center;min-height:320px;align-items:flex-end;padding:6px 0 2px}
 
 .carta{
@@ -157,7 +167,9 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .cpu-hand{gap:5px;min-height:124px}
   .retro{width:70px;height:118px;border-radius:7px;border-width:1.5px}
 
-  .tavolo{gap:4px;min-height:168px;padding:8px 6px;border-radius:10px}
+  .tavolo{gap:4px;min-height:168px;padding:8px 6px 8px 52px;border-radius:10px}
+  .mazzetto{left:6px;width:36px;height:61px}
+  .mazzetto .conta{font-size:10px;padding:2px 6px;top:-9px;right:-8px}
   .mano{gap:8px;min-height:208px;padding:3px 0 1px}
 
   /* larghezza fluida: la mano tiene 3 carte, il tavolo esattamente 4 per riga (5+ vanno a capo) */
@@ -215,7 +227,10 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 
 <div class="zona">
   <div class="etichetta">Tavolo</div>
-  <div class="tavolo" id="tavolo"></div>
+  <div style="position:relative">
+    <div class="mazzetto" id="mazzetto"><div class="retro"></div><div class="retro"></div><div class="conta" id="contaMazzo">30</div></div>
+    <div class="tavolo" id="tavolo"></div>
+  </div>
 </div>
 
 <div class="msg" id="msg">Tocca <b>Nuova partita</b> per cominciare.</div>
@@ -715,6 +730,8 @@ const LASTPOS = {};
 function render(){
   const d = ST.d;
   document.getElementById('pMazzo').textContent = d.mazzo.length;
+  document.getElementById('contaMazzo').textContent = d.mazzo.length;
+  document.getElementById('mazzetto').classList.toggle('vuoto', d.mazzo.length===0);
   document.getElementById('statoPrese').textContent =
     `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length} — Scope: ${d.scope.tu}–${d.scope.cpu}`;
   const livLabel = {facile:'😴', medio:'🎯', difficile:'🧠'}[ST.livello||'medio'];
