@@ -65,7 +65,8 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 }
 .slot{width:120px;height:202px;border-radius:9px;border:1.5px dashed rgba(255,255,255,.25);
   display:flex;align-items:center;justify-content:center;position:relative}
-.mazzetto{position:relative;width:74px;height:124px;flex:0 0 auto}
+.banco{position:relative}
+.mazzetto{position:absolute;left:26px;top:50%;transform:translateY(-50%);width:74px;height:124px}
 .mazzetto .retro{width:100%;height:100%;position:absolute;left:0;top:0}
 .mazzetto .retro:nth-child(2){left:3px;top:-3px}
 .mazzetto .conta{
@@ -145,7 +146,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .retro{width:34px;height:57px;border-radius:4px;border-width:1px}
   .banco{gap:14px;min-height:150px;padding:8px 4px;border-radius:10px}
   .slot{width:80px;height:135px}
-  .mazzetto{width:46px;height:78px}
+  .mazzetto{left:8px;width:46px;height:78px}
   .mazzetto .conta{font-size:10px;padding:2px 6px;top:-9px;right:-8px}
   .mano{gap:5px;min-height:250px}
   .carta{width:calc((100vw - 38px)/5);max-width:78px;height:auto;aspect-ratio:0.59;border-radius:6px}
@@ -387,6 +388,23 @@ async function animaGiocataSlot(p, carta){
   }catch(e){}
 }
 
+async function animaPescataB(p, carta){
+  try{
+    const mz = document.getElementById('mazzetto');
+    const from = rectOf(mz);
+    const scoperta = (p==='tu') || (carta.id===ST.d.briscola.id);
+    let clone;
+    if(scoperta){ clone = cartaEl(carta,'small'); }
+    else { clone = document.createElement('div'); clone.className='retro'; }
+    styleAsClone(clone, {left:from.left, top:from.top, width:from.width, height:from.height}, 66);
+    document.body.appendChild(clone);
+    const zona = document.getElementById(p==='tu'?'mano':'cpuHand');
+    const z = rectOf(zona);
+    await animateTo(clone, {left:z.left+z.width/2-31, top:(p==='tu'? z.top+8 : z.top), width:62, height:104, opacity:'0.1'}, 430);
+    clone.remove();
+  }catch(e){}
+}
+
 async function animaPresaBanco(vincitore){
   try{
     const els = document.querySelectorAll('.slot .carta');
@@ -450,14 +468,19 @@ async function gioca(p, carta){
     const perd = (vinc==='tu')?'cpu':'tu';
     const cartaV = d.tallone.shift();
     const cartaP = d.tallone.shift();
-    d.mani[vinc].push(cartaV);
-    d.mani[perd].push(cartaP);
     const tue = vinc==='tu' ? cartaV : cartaP;
     if(d.tallone.length===0){
       setMsg(`Peschi <b>${nomeCarta(tue)}</b>. Mazzo finito: ultime tre mani!`);
     } else {
       setMsg(`Peschi <b>${nomeCarta(tue)}</b>. La CPU pesca coperta.`);
     }
+    render();
+    await Promise.all([
+      animaPescataB(vinc, cartaV),
+      (async()=>{ await sleep(140); await animaPescataB(perd, cartaP); })()
+    ]);
+    d.mani[vinc].push(cartaV);
+    d.mani[perd].push(cartaP);
     if(cartaV.v===1||cartaV.v===3) addFortuna(vinc==='tu'?0.5:-0.5, `${RANK_NOME[cartaV.v]} pescato ${vinc==='tu'?'da te':'dalla CPU'} (+0.5)`);
     if(cartaP.v===1||cartaP.v===3) addFortuna(perd==='tu'?0.5:-0.5, `${RANK_NOME[cartaP.v]} pescato ${perd==='tu'?'da te':'dalla CPU'} (+0.5)`);
   }
