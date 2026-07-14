@@ -481,8 +481,13 @@ async function gioca(p, carta){
     ]);
     d.mani[vinc].push(cartaV);
     d.mani[perd].push(cartaP);
-    if(cartaV.v===1||cartaV.v===3) addFortuna(vinc==='tu'?0.5:-0.5, `${RANK_NOME[cartaV.v]} pescato ${vinc==='tu'?'da te':'dalla CPU'} (+0.5)`);
-    if(cartaP.v===1||cartaP.v===3) addFortuna(perd==='tu'?0.5:-0.5, `${RANK_NOME[cartaP.v]} pescato ${perd==='tu'?'da te':'dalla CPU'} (+0.5)`);
+    // fortuna: contano solo le briscole che entrano in mano
+    for(const [chi, c] of [[vinc, cartaV], [perd, cartaP]]){
+      if(c.s === d.briscola.s){
+        const peso = (c.v===1 || c.v===3) ? 1 : 0.6;   // asso/tre di briscola pesano di più
+        addFortuna(chi==='tu'?peso:-peso, `Briscola pescata ${chi==='tu'?'da te':'dalla CPU'}: ${nomeCarta(c)} (${chi==='tu'?'+':'-'}${peso})`);
+      }
+    }
   }
 
   d.turno = vinc;
