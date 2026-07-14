@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cirulla">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <meta name="theme-color" content="#0b4d2c">
 <title>Cirulla</title>
 <style>
@@ -315,7 +318,7 @@ function nuovaSmazzata(){
     ST.d.prese[m].push(...tavolo.splice(0,4));
     ST.d.scope[m]+=n;
     ST.d.ultimaPresa = m;
-    addFortuna(m==='tu'?n:-n, `Accuso del mazziere (${somma} in tavola): ${n} scop${n>1?'e':'a'} ${m==='tu'?'a te':'alla CPU'}`);
+    addFortuna(m==='tu'?(n+0.5):-(n+0.5), `Accuso del mazziere (${somma} in tavola): ${n} scop${n>1?'e':'a'} + 4 carte ${m==='tu'?'a te':'alla CPU'} (${m==='tu'?'+':'-'}${n+0.5})`);
     msgIni = `Le 4 carte in tavola sommavano ${somma}: ${m==='tu'?'le prendi tu':'le prende la CPU'} con ${n} scop${n>1?'e':'a'}!`;
   }
 
@@ -342,12 +345,14 @@ function distribuisci(){
     if(d.mazzo.length){ const c=d.mazzo.shift(); d.mani[primo].push(c); date[primo].push(c); }
     if(d.mazzo.length){ const c=d.mazzo.shift(); d.mani[secondo].push(c); date[secondo].push(c); }
   }
-  // Fortuna della pesca: settebello e assi capitati in mano
+  // Fortuna della pesca — pesata sui punti reali che vale:
+  // settebello = 1 punto potenziale a fine mano → peso basso
+  // asso = piglia tutto: tante carte e prese regalate → peso maggiore
   for(const p of ['tu','cpu']){
     const segno = (p==='tu')?1:-1;
     for(const c of date[p]){
-      if(isSettebello(c)) addFortuna(1.5*segno, `Settebello pescato ${p==='tu'?'da te':'dalla CPU'}`);
-      else if(c.v===1) addFortuna(0.5*segno, `Asso pescato ${p==='tu'?'da te':'dalla CPU'}`);
+      if(isSettebello(c)) addFortuna(0.5*segno, `Settebello pescato ${p==='tu'?'da te':'dalla CPU'} (+0.5)`);
+      else if(c.v===1) addFortuna(1*segno, `Asso pescato ${p==='tu'?'da te':'dalla CPU'} (+1)`);
     }
   }
   // La bussata si dichiara al proprio turno, non alla distribuzione
@@ -381,7 +386,7 @@ function dichiarazioni(p){
     ST.d.scope[p]+=10;
     ST.d.bussate[p]+=10;
     ST.d.bussateTxt[p].push('Decino');
-    addFortuna(p==='tu'?10:-10, `Decino ${p==='tu'?'tuo':'della CPU'}: 10 scope regalate dalla sorte`);
+    addFortuna(p==='tu'?10:-10, `Decino ${p==='tu'?'tuo':'della CPU'}: 10 scope regalate dalla sorte (${p==='tu'?'+':'-'}10)`);
     mostraBussata(
       p==='tu' ? 'Bussi: Decino!' : 'La CPU bussa: Decino!',
       `Tre ${RANK_NOME[vals[0]].toLowerCase()} in mano → gira 10 scope 😱`
@@ -391,7 +396,7 @@ function dichiarazioni(p){
     ST.d.scope[p]+=3;
     ST.d.bussate[p]+=3;
     ST.d.bussateTxt[p].push('Cirulla');
-    addFortuna(p==='tu'?3:-3, `Cirulla ${p==='tu'?'tua':'della CPU'} (somma ${somma}): 3 scope`);
+    addFortuna(p==='tu'?3:-3, `Cirulla ${p==='tu'?'tua':'della CPU'} (somma ${somma}): 3 scope (${p==='tu'?'+':'-'}3)`);
     mostraBussata(
       p==='tu' ? 'Bussi: Cirulla!' : 'La CPU bussa: Cirulla!',
       `Somma delle carte in mano ${somma} (≤9) → gira 3 scope`
