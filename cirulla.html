@@ -414,21 +414,77 @@ function nuovaSmazzata(){
     if(30-s3>=1 && 30-s3<=10){ n=2; mattaVal=30-s3; sommaTxt=`30 (matta = ${mattaVal})`; }
     else if(15-s3>=1 && 15-s3<=10){ n=1; mattaVal=15-s3; sommaTxt=`15 (matta = ${mattaVal})`; }
   }
-  let msgIni = '';
-  if(n>0){
-    const m = ST.mazziere;
-    ST.d.prese[m].push(...tavolo.splice(0,4));
-    ST.d.scope[m]+=n;
-    ST.d.ultimaPresa = m;
-    addFortuna(m==='tu'?(n+0.5):-(n+0.5), `Accuso del mazziere (${sommaTxt} in tavola): ${n} scop${n>1?'e':'a'} + 4 carte ${m==='tu'?'a te':'alla CPU'} (${m==='tu'?'+':'-'}${n+0.5})`);
-    msgIni = `Le 4 carte in tavola ${mattaVal?`facevano ${sommaTxt} — la matta 7 di bastoni vale ${mattaVal}`:`sommavano ${somma}`}: ${m==='tu'?'le prendi tu':'le prende la CPU'} con ${n} scop${n>1?'e':'a'}!`;
-  }
-
   distribuisci();
   render();
-  setMsg(msgIni ? msgIni+'<br>Tocca una carta per giocarla.' : 'Tocca una carta della tua mano.');
+
+  if(n>0){
+    // Accuso del mazziere: le carte restano in vista finché non confermi (persiste anche nel salvataggio)
+    ST.d.accusoPendente = {n, sommaTxt, mattaVal, somma};
+    mostraAccusoPendente();
+    return;
+  }
+
+  setMsg('Tocca una carta della tua mano.');
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
   else dichiaraSeDeve('tu');
+}
+
+function mostraAccusoPendente(){
+  const ap = ST.d.accusoPendente;
+  if(!ap) return;
+  const {n, sommaTxt, mattaVal, somma} = ap;
+  const m = ST.mazziere;
+  BUSY = true;
+  document.querySelectorAll('#tavolo .carta').forEach(el=>el.classList.add('presa-evid'));
+  setMsg(`✋ Le 4 carte in tavola ${mattaVal?`fanno <b>${sommaTxt}</b> — la matta 7 di bastoni vale ${mattaVal}`:`sommano <b>${somma}</b>`}: accuso del mazziere, ${n} scop${n>1?'e':'a'} ${m==='tu'?'a te':'alla CPU'}!`);
+  const box = document.getElementById('scelte');
+  box.innerHTML = '';
+  const barra = document.createElement('div');
+  barra.className = 'scelte-barra';
+  const okBtn = document.createElement('button');
+  okBtn.className = 'btn';
+  okBtn.textContent = `✓ OK — ${m==='tu'?'porta a casa':'vanno alla CPU'}`;
+  okBtn.onclick = async ()=>{
+    box.innerHTML = '';
+    await animaAccuso(m);
+    ST.d.prese[m].push(...ST.d.tavolo.splice(0,4));
+    ST.d.scope[m] += n;
+    ST.d.ultimaPresa = m;
+    ST.d.accusoPendente = null;
+    addFortuna(m==='tu'?(n+0.5):-(n+0.5), `Accuso del mazziere (${sommaTxt} in tavola): ${n} scop${n>1?'e':'a'} + 4 carte ${m==='tu'?'a te':'alla CPU'} (${m==='tu'?'+':'-'}${n+0.5})`);
+    BUSY = false;
+    render();
+    setMsg('Tocca una carta della tua mano.');
+    if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
+    else dichiaraSeDeve('tu');
+  };
+  barra.appendChild(okBtn);
+  box.appendChild(barra);
+}
+
+// Le 4 carte dell'accuso volano verso chi le prende
+async function animaAccuso(vincitore){
+  try{
+    const els = Array.from(document.querySelectorAll('#tavolo .carta'));
+    if(!els.length) return;
+    await sleep(200);
+    const zona = document.getElementById(vincitore==='tu' ? 'mano' : 'cpuHand');
+    const zRect = rectOf(zona);
+    const target = (vincitore==='tu')
+      ? { left:zRect.left+zRect.width/2-26, top:zRect.bottom+20, width:52, height:72, opacity:'0' }
+      : { left:zRect.left+zRect.width/2-26, top:zRect.top-90, width:52, height:72, opacity:'0' };
+    const clones = els.map((el,i)=>{
+      const r = rectOf(el);
+      el.style.visibility='hidden';
+      const cl = el.cloneNode(true);
+      cl.classList.remove('presa-evid');
+      styleAsClone(cl, r, 61+i);
+      document.body.appendChild(cl);
+      return cl;
+    });
+    await Promise.all(clones.map((cl,i)=> animateTo(cl, target, 420, i*45)));
+    clones.forEach(c=>c.remove());
+  }catch(e){}
 }
 
 function addFortuna(delta, txt){
@@ -1249,6 +1305,7 @@ function riprendiPartita(salvata){
     else { render(); setTimeout(fineSmazzata, 600); return; }
   }
   render();
+  if(ST.d.accusoPendente){ mostraAccusoPendente(); return; }
   setMsg('Partita ripresa: ' + (ST.d.turno==='tu' ? 'tocca a te.' : 'gioca la CPU.'));
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
   else dichiaraSeDeve('tu');
