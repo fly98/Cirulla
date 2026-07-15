@@ -94,6 +94,12 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .carta.gioca{animation:pulse .8s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
 .settebello::after{content:"★";position:absolute;top:6px;right:8px;font-size:16px;color:var(--oro);text-shadow:0 0 4px #000,0 0 4px #000;z-index:2}
+.jolly-fisso{
+  position:absolute;left:50%;bottom:8px;transform:translateX(-50%);
+  background:var(--oro);color:#2b2110;font-size:11px;font-weight:900;letter-spacing:.5px;
+  border-radius:7px;padding:3px 7px;box-shadow:0 2px 8px rgba(0,0,0,.45);z-index:3;
+  border:1.5px solid #fff;white-space:nowrap;
+}
 .badge-jolly{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-12deg);
   background:var(--oro);color:#2b2110;font-size:15px;font-weight:900;letter-spacing:1px;
@@ -285,8 +291,9 @@ function nuovoMazzo(){
   return m;
 }
 const semeOf = k => SEMI.find(x=>x.k===k);
-const nomeCarta = c => `${RANK_NOME[c.v]} di ${semeOf(c.s).nome}`;
+const nomeCarta = c => `${RANK_NOME[c.v]} di ${semeOf(c.s).nome}`+(c.jolly?` (matta = ${c.jolly})`:'');
 const isMatta = c => c.v===7 && c.s==='b';   // il 7 di bastoni è la matta (jolly per bussate e accusi)
+const valDi = c => c.jolly || c.v;            // se la matta ha assunto un valore, lo mantiene per tutta la smazzata
 const isSettebello = c => c.v===7 && c.s==='d';
 
 /* ============ PRESE ============ */
@@ -302,7 +309,7 @@ function sottoinsiemi(arr){
   return out;
 }
 
-// Opzioni di presa per la carta c sul tavolo t
+// Opzioni di presa per la carta c sul tavolo t (valori efficaci: la matta impressa conta col suo jolly)
 function opzioniPresa(c, t){
   const opts=[];
   const key = s => s.map(x=>x.id).sort((a,b)=>a-b).join(',');
@@ -315,10 +322,11 @@ function opzioniPresa(c, t){
   };
 
   if(t.length===0) return opts;
+  const cv = valDi(c);
 
-  // Asso: piglia tutto, MA se in tavola c'è un asso prende solo quello
-  if(c.v===1){
-    const assi = t.filter(x=>x.v===1);
+  // Asso (anche la matta che vale 1): piglia tutto, MA se in tavola c'è un asso prende solo quello
+  if(cv===1){
+    const assi = t.filter(x=>valDi(x)===1);
     if(assi.length){
       for(const a of assi) push([a], 'uguale');
     } else {
@@ -327,15 +335,14 @@ function opzioniPresa(c, t){
     return opts;
   }
 
+  const uguali = t.filter(x=>valDi(x)===cv);
+  for(const u of uguali) push([u], 'uguale');
+
   const subs = sottoinsiemi(t);
   for(const s of subs){
-    const somma = s.reduce((a,x)=>a+x.v,0);
-    if(s.length===1 && s[0].v===c.v) push(s,'uguale');
-    else if(s.length>1 && somma===c.v) push(s,'somma');
-  }
-  for(const s of subs){
-    const somma = s.reduce((a,x)=>a+x.v,0);
-    if(somma + c.v === 15) push(s,'a 15');
+    const somma = s.reduce((a,x)=>a+valDi(x),0);
+    if(s.length>1 && somma===cv) push(s,'somma');
+    if(somma + cv === 15) push(s,'a 15');
   }
   return opts;
 }
@@ -504,7 +511,7 @@ function dichiarazioni(p){
         : `Tre ${RANK_NOME[trisVal].toLowerCase()} in mano → gira 10 scope 😱`
     );
     toast(`${p==='tu'?'Tris in mano: bussi, è un Decino! Giri':'La CPU bussa: ha un Decino, gira'} 10 scope 😱`);
-    if(trisConMatta) badgeMatta(p, trisVal);
+    if(trisConMatta){ matta.jolly = trisVal; badgeMatta(p, trisVal); render(); }
   } else if(cirullaOk){
     ST.d.scope[p]+=3;
     ST.d.bussate[p]+=3;
@@ -517,7 +524,7 @@ function dichiarazioni(p){
         : `Somma delle carte in mano ${sommaEff} (≤9) → gira 3 scope`
     );
     toast(`${p==='tu'?`Cirulla in mano (somma ${sommaEff}): bussi! Giri`:'La CPU bussa: ha Cirulla in mano, gira'} 3 scope`);
-    if(cirullaConMatta) badgeMatta(p, 1);
+    if(cirullaConMatta){ matta.jolly = 1; badgeMatta(p, 1); render(); }
   }
 }
 
@@ -688,7 +695,7 @@ async function esegui(p, carta, presa){
     txt += ` e prend${p==='tu'?'i':'e'} ${presa.cards.map(nomeCarta).join(' + ')} <span class="ok">(${presa.tipo})</span>`;
 
     const ultimaGiocata = d.mazzo.length===0 && d.mani.tu.length===0 && d.mani.cpu.length===0;
-    const scopaValida = carta.v!==1 || presa.tipo==='uguale'; // asso piglia tutto non fa scopa; asso su asso sì
+    const scopaValida = valDi(carta)!==1 || presa.tipo==='uguale'; // asso piglia tutto non fa scopa; asso su asso sì
     if(d.tavolo.length===0 && !ultimaGiocata && scopaValida){
       d.scope[p]++;
       txt += ` <span class="ok">SCOPA!</span>`;
@@ -777,8 +784,8 @@ function cpuMedio(){
       sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
       const restano = d.tavolo.length - o.cards.length;
       const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
-      if(restano===0 && !ultima && (c.v!==1 || o.tipo==='uguale')) sc += 9;   // scopa (vale anche asso su asso)
-      if(c.v===1 && restano===0) sc += d.tavolo.length*0.8; // asso piglia tutto
+      if(restano===0 && !ultima && (valDi(c)!==1 || o.tipo==='uguale')) sc += 9;   // scopa (vale anche asso su asso)
+      if(valDi(c)===1 && restano===0) sc += d.tavolo.length*0.8; // asso piglia tutto
       if(!best || sc>best.sc) best={sc, carta:c, presa:o};
     }
   }
@@ -853,8 +860,8 @@ function cpuDifficile(){
         sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
         const restano = d.tavolo.length - o.cards.length;
         const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
-        if(restano===0 && !ultima && (c.v!==1 || o.tipo==='uguale')) sc += 9;
-        if(c.v===1 && restano===0) sc += d.tavolo.length*0.8;
+        if(restano===0 && !ultima && (valDi(c)!==1 || o.tipo==='uguale')) sc += 9;
+        if(valDi(c)===1 && restano===0) sc += d.tavolo.length*0.8;
         // guarda avanti: quanto è pericoloso il tavolo che lascio?
         const ids = new Set(o.cards.map(x=>x.id));
         const tavoloDopo = d.tavolo.filter(x=>!ids.has(x.id));
@@ -1000,7 +1007,8 @@ function cartaEl(c, cls){
   const d = document.createElement('div');
   d.className = 'carta ' + s.cls + (cls?(' '+cls):'') + (isSettebello(c)?' settebello':'');
   d.title = nomeCarta(c);
-  d.innerHTML = `<img class="face" src="cards/${c.s}${c.v}.jpg" alt="${nomeCarta(c)}" draggable="false">`;
+  d.innerHTML = `<img class="face" src="cards/${c.s}${c.v}.jpg" alt="${nomeCarta(c)}" draggable="false">`
+    + (c.jolly ? `<div class="jolly-fisso">MATTA = ${c.jolly}</div>` : '');
   d.dataset.id = c.id;
   return d;
 }
@@ -1092,7 +1100,7 @@ function migliorePresa(carta, opts){
   let best=null;
   for(const o of opts){
     let sc = valutaPresa([carta, ...o.cards]);
-    if(o.cards.length===ST.d.tavolo.length && carta.v!==1) sc += 9; // preferisci la scopa
+    if(o.cards.length===ST.d.tavolo.length && valDi(carta)!==1) sc += 9; // preferisci la scopa
     if(!best || sc>best.sc) best={sc, o};
   }
   return best.o;
@@ -1196,7 +1204,7 @@ const REGOLE = `
 <li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
 <li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
 <li><b>Bussate (accusi)</b>: si dichiarano al proprio turno, prima di calare. <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>. (Il gioco bussa per te automaticamente al tuo turno.)</li>
-<li><b>La matta (7 di bastoni)</b> è un jolly per bussate e accuso del mazziere: vale <b>1</b> per la Cirulla, <b>il valore delle due gemelle</b> per il Decino, e <b>quello che serve</b> per il 15/30 in tavola. Quando fa da jolly appare la scritta col valore assunto; in tutte le prese resta un normale 7.</li>
+<li><b>La matta (7 di bastoni)</b> è un jolly per bussate e accuso del mazziere: vale <b>1</b> per la Cirulla, <b>il valore delle due gemelle</b> per il Decino, e <b>quello che serve</b> per il 15/30 in tavola. <b>Il valore assunto resta impresso sulla carta per tutta la smazzata</b>: se vale 1, poi si gioca come un asso (piglia tutto compreso). Se non fa da jolly, resta un normale 7.</li>
 <li><b>Grande</b>: aver catturato, durante la mano, Fante + Cavallo + Re di denari (anche in prese diverse) → <b>5 punti</b> a fine mano.</li>
 <li><b>Piccola</b>: aver catturato Asso + 2 + 3 di denari → <b>3 punti</b>, +1 per ogni carta successiva consecutiva (4, 5, 6, 7) finché la sequenza non si interrompe.</li>
 <li><b>Punti a fine mano</b>: carte, denari, settebello, primiera, Grande, Piccola, + tutte le scope (incluse quelle delle bussate e dell'accuso del mazziere).</li>
