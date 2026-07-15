@@ -94,6 +94,12 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .carta.gioca{animation:pulse .8s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.35),var(--ombra)}50%{box-shadow:0 0 0 5px rgba(232,194,102,.55),var(--ombra)}}
 .settebello::after{content:"★";position:absolute;top:6px;right:8px;font-size:16px;color:var(--oro);text-shadow:0 0 4px #000,0 0 4px #000;z-index:2}
+.badge-jolly{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-12deg);
+  background:var(--oro);color:#2b2110;font-size:15px;font-weight:900;letter-spacing:1px;
+  border-radius:9px;padding:6px 10px;box-shadow:0 3px 12px rgba(0,0,0,.5);z-index:3;
+  border:2px solid #fff;white-space:nowrap;
+}
 
 .carta.flying{cursor:default;pointer-events:none}
 .presa-evid{box-shadow:0 0 0 5px #59d98a,0 0 22px 8px rgba(89,217,138,.7),var(--ombra)!important;transform:translateY(-8px);transition:box-shadow .25s,transform .25s}
@@ -280,6 +286,7 @@ function nuovoMazzo(){
 }
 const semeOf = k => SEMI.find(x=>x.k===k);
 const nomeCarta = c => `${RANK_NOME[c.v]} di ${semeOf(c.s).nome}`;
+const isMatta = c => c.v===7 && c.s==='b';   // il 7 di bastoni è la matta (jolly per bussate e accusi)
 const isSettebello = c => c.v===7 && c.s==='d';
 
 /* ============ PRESE ============ */
@@ -389,17 +396,25 @@ function nuovaSmazzata(){
     fortunaLog:[]
   };
 
-  // Regola mazziere: 4 carte in tavola che sommano 15 (o 30) -> il mazziere le prende
+  // Regola mazziere: 4 carte in tavola che sommano 15 (o 30) -> il mazziere le prende.
+  // Se in tavola c'è la matta (7 di bastoni), assume il valore che serve per arrivarci.
   const somma = tavolo.reduce((a,c)=>a+c.v,0);
+  let n = 0, sommaTxt = String(somma), mattaVal = null;
+  if(somma===15) n=1;
+  else if(somma===30) n=2;
+  else if(tavolo.some(isMatta)){
+    const s3 = somma - 7;                       // somma delle altre tre
+    if(30-s3>=1 && 30-s3<=10){ n=2; mattaVal=30-s3; sommaTxt=`30 (matta = ${mattaVal})`; }
+    else if(15-s3>=1 && 15-s3<=10){ n=1; mattaVal=15-s3; sommaTxt=`15 (matta = ${mattaVal})`; }
+  }
   let msgIni = '';
-  if(somma===15 || somma===30){
-    const n = (somma===30)?2:1;
+  if(n>0){
     const m = ST.mazziere;
     ST.d.prese[m].push(...tavolo.splice(0,4));
     ST.d.scope[m]+=n;
     ST.d.ultimaPresa = m;
-    addFortuna(m==='tu'?(n+0.5):-(n+0.5), `Accuso del mazziere (${somma} in tavola): ${n} scop${n>1?'e':'a'} + 4 carte ${m==='tu'?'a te':'alla CPU'} (${m==='tu'?'+':'-'}${n+0.5})`);
-    msgIni = `Le 4 carte in tavola sommavano ${somma}: ${m==='tu'?'le prendi tu':'le prende la CPU'} con ${n} scop${n>1?'e':'a'}!`;
+    addFortuna(m==='tu'?(n+0.5):-(n+0.5), `Accuso del mazziere (${sommaTxt} in tavola): ${n} scop${n>1?'e':'a'} + 4 carte ${m==='tu'?'a te':'alla CPU'} (${m==='tu'?'+':'-'}${n+0.5})`);
+    msgIni = `Le 4 carte in tavola ${mattaVal?`facevano ${sommaTxt} — la matta 7 di bastoni vale ${mattaVal}`:`sommavano ${somma}`}: ${m==='tu'?'le prendi tu':'le prende la CPU'} con ${n} scop${n>1?'e':'a'}!`;
   }
 
   distribuisci();
@@ -460,29 +475,70 @@ function dichiarazioni(p){
   const m = ST.d.mani[p];
   if(m.length!==3) return;
   const vals = m.map(c=>c.v);
-  const tris = vals[0]===vals[1] && vals[1]===vals[2];
+  const matta = m.find(isMatta);
+  const altri = m.filter(c=>!isMatta(c));
+
+  // Decino: tris naturale, oppure due carte uguali + la matta che le imita
+  let tris = vals[0]===vals[1] && vals[1]===vals[2];
+  let trisConMatta = false, trisVal = vals[0];
+  if(!tris && matta && altri.length===2 && altri[0].v===altri[1].v){
+    tris = true; trisConMatta = true; trisVal = altri[0].v;
+  }
+
+  // Cirulla: somma ≤ 9; la matta vale 1 (il minimo utile)
   const somma = vals.reduce((a,b)=>a+b,0);
+  const sommaMatta = matta ? altri.reduce((a,c)=>a+c.v,0) + 1 : null;
+  const cirullaOk = somma<=9 || (matta && sommaMatta<=9);
+  const cirullaConMatta = !(somma<=9) && matta && sommaMatta<=9;
+  const sommaEff = somma<=9 ? somma : sommaMatta;
+
   if(tris){
     ST.d.scope[p]+=10;
     ST.d.bussate[p]+=10;
-    ST.d.bussateTxt[p].push('Decino');
-    addFortuna(p==='tu'?10:-10, `Decino ${p==='tu'?'tuo':'della CPU'}: 10 scope regalate dalla sorte (${p==='tu'?'+':'-'}10)`);
+    ST.d.bussateTxt[p].push('Decino'+(trisConMatta?' (matta)':''));
+    addFortuna(p==='tu'?10:-10, `Decino ${p==='tu'?'tuo':'della CPU'}${trisConMatta?' con la matta':''}: 10 scope regalate dalla sorte (${p==='tu'?'+':'-'}10)`);
     mostraBussata(
       p==='tu' ? 'Bussi: Decino!' : 'La CPU bussa: Decino!',
-      `Tre ${RANK_NOME[vals[0]].toLowerCase()} in mano → gira 10 scope 😱`
+      trisConMatta
+        ? `Due ${RANK_NOME[trisVal].toLowerCase()} + la matta (7♣ di bastoni = ${trisVal}) → gira 10 scope 😱`
+        : `Tre ${RANK_NOME[trisVal].toLowerCase()} in mano → gira 10 scope 😱`
     );
     toast(`${p==='tu'?'Tris in mano: bussi, è un Decino! Giri':'La CPU bussa: ha un Decino, gira'} 10 scope 😱`);
-  } else if(somma<=9){
+    if(trisConMatta) badgeMatta(p, trisVal);
+  } else if(cirullaOk){
     ST.d.scope[p]+=3;
     ST.d.bussate[p]+=3;
-    ST.d.bussateTxt[p].push('Cirulla');
-    addFortuna(p==='tu'?3:-3, `Cirulla ${p==='tu'?'tua':'della CPU'} (somma ${somma}): 3 scope (${p==='tu'?'+':'-'}3)`);
+    ST.d.bussateTxt[p].push('Cirulla'+(cirullaConMatta?' (matta)':''));
+    addFortuna(p==='tu'?3:-3, `Cirulla ${p==='tu'?'tua':'della CPU'}${cirullaConMatta?' con la matta':''} (somma ${sommaEff}): 3 scope (${p==='tu'?'+':'-'}3)`);
     mostraBussata(
       p==='tu' ? 'Bussi: Cirulla!' : 'La CPU bussa: Cirulla!',
-      `Somma delle carte in mano ${somma} (≤9) → gira 3 scope`
+      cirullaConMatta
+        ? `Con la matta che vale 1: somma ${sommaEff} (≤9) → gira 3 scope`
+        : `Somma delle carte in mano ${sommaEff} (≤9) → gira 3 scope`
     );
-    toast(`${p==='tu'?`Cirulla in mano (somma ${somma}): bussi! Giri`:'La CPU bussa: ha Cirulla in mano, gira'} 3 scope`);
+    toast(`${p==='tu'?`Cirulla in mano (somma ${sommaEff}): bussi! Giri`:'La CPU bussa: ha Cirulla in mano, gira'} 3 scope`);
+    if(cirullaConMatta) badgeMatta(p, 1);
   }
+}
+
+// badge temporaneo sul 7 di bastoni quando fa da jolly
+function badgeMatta(p, valore){
+  if(p!=='tu') return;
+  setTimeout(()=>{
+    const el = document.querySelector('#mano .carta[data-id]');
+    const carte = document.querySelectorAll('#mano .carta');
+    for(const c of carte){
+      const carta = ST.d.mani.tu.find(x=>String(x.id)===c.dataset.id);
+      if(carta && isMatta(carta)){
+        const b = document.createElement('div');
+        b.className = 'badge-jolly';
+        b.textContent = `MATTA = ${valore}`;
+        c.appendChild(b);
+        setTimeout(()=>b.remove(), 3200);
+        break;
+      }
+    }
+  }, 60);
 }
 
 /* ============ ANIMAZIONI ============ */
@@ -1140,6 +1196,7 @@ const REGOLE = `
 <li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
 <li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
 <li><b>Bussate (accusi)</b>: si dichiarano al proprio turno, prima di calare. <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>. (Il gioco bussa per te automaticamente al tuo turno.)</li>
+<li><b>La matta (7 di bastoni)</b> è un jolly per bussate e accuso del mazziere: vale <b>1</b> per la Cirulla, <b>il valore delle due gemelle</b> per il Decino, e <b>quello che serve</b> per il 15/30 in tavola. Quando fa da jolly appare la scritta col valore assunto; in tutte le prese resta un normale 7.</li>
 <li><b>Grande</b>: aver catturato, durante la mano, Fante + Cavallo + Re di denari (anche in prese diverse) → <b>5 punti</b> a fine mano.</li>
 <li><b>Piccola</b>: aver catturato Asso + 2 + 3 di denari → <b>3 punti</b>, +1 per ogni carta successiva consecutiva (4, 5, 6, 7) finché la sequenza non si interrompe.</li>
 <li><b>Punti a fine mano</b>: carte, denari, settebello, primiera, Grande, Piccola, + tutte le scope (incluse quelle delle bussate e dell'accuso del mazziere).</li>
