@@ -827,31 +827,98 @@ let MP = null;  // {role:'host'|'guest', code, ws, avversarioOn, fineViste:{}}
 
 function mpAttivo(){ return !!MP; }
 
+let MP_POLL = null;
+
+function mpNome(){
+  let n = '';
+  try{ n = localStorage.getItem('fly_nome') || ''; }catch(e){}
+  return n;
+}
+
+function mpSalvaNome(){
+  const el = document.getElementById('mpNomeInput');
+  if(el && el.value.trim()){ try{ localStorage.setItem('fly_nome', el.value.trim()); }catch(e){} }
+  return (el && el.value.trim()) || mpNome() || 'Giocatore';
+}
+
 function mpApriLobby(){
   apriModal(`
     <h2>🌐 Briscola online</h2>
-    <div style="font-size:14px;color:#ddefe4;margin-bottom:14px">
-      Uno crea la partita e detta il codice, l'altro lo inserisce. Chi crea fa da mazziere della prima mano.
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <span style="font-size:13px;color:#9fd3b5">Il tuo nome</span>
+      <input id="mpNomeInput" value="${mpNome()}" placeholder="es. Filippo" maxlength="20"
+        style="flex:1;font-size:16px;border-radius:9px;border:1px solid rgba(232,194,102,.5);background:rgba(0,0,0,.3);color:#fff;padding:9px 12px">
     </div>
     <button class="btn btn-big" id="btnMpCrea">➕ Crea partita</button>
-    <div style="display:flex;gap:8px;margin-top:14px">
-      <input id="mpCodice" placeholder="CODICE" maxlength="4" autocapitalize="characters"
-        style="flex:1;font-size:22px;letter-spacing:6px;text-align:center;text-transform:uppercase;
-        border-radius:9px;border:1px solid rgba(232,194,102,.5);background:rgba(0,0,0,.3);color:#fff;padding:10px">
-      <button class="btn btn-big" style="width:auto;margin:0" id="btnMpEntra">Unisciti</button>
+    <div style="font-size:13px;color:#9fd3b5;letter-spacing:1px;text-transform:uppercase;margin:18px 0 6px">Partite aperte — tocca per unirti</div>
+    <div id="mpLista" style="min-height:60px">
+      <div style="color:#9fd3b5;font-size:13px;padding:10px 0">Cerco partite…</div>
     </div>
-    <button class="btn ghost btn-big" style="margin-top:14px" onclick="document.getElementById('overlay').classList.remove('on')">Annulla</button>
+    <details style="margin-top:12px">
+      <summary style="font-size:12px;color:#9fd3b5;cursor:pointer">Ho un codice</summary>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="mpCodice" placeholder="CODICE" maxlength="4" autocapitalize="characters"
+          style="flex:1;font-size:20px;letter-spacing:5px;text-align:center;text-transform:uppercase;
+          border-radius:9px;border:1px solid rgba(232,194,102,.5);background:rgba(0,0,0,.3);color:#fff;padding:9px">
+        <button class="btn" style="width:auto" id="btnMpEntra">Unisciti</button>
+      </div>
+    </details>
+    <button class="btn ghost btn-big" style="margin-top:14px" id="btnMpAnnulla">Annulla</button>
   `);
-  document.getElementById('btnMpCrea').onclick = mpCrea;
+
+  document.getElementById('btnMpCrea').onclick = ()=>{ const n=mpSalvaNome(); mpStopPoll(); mpCrea(n); };
   document.getElementById('btnMpEntra').onclick = ()=>{
     const code = document.getElementById('mpCodice').value.trim().toUpperCase();
-    if(code.length>=4) mpConnetti(code, 'guest');
+    if(code.length>=4){ mpSalvaNome(); mpStopPoll(); mpConnetti(code, 'guest'); }
   };
+  document.getElementById('btnMpAnnulla').onclick = ()=>{
+    mpStopPoll();
+    document.getElementById('overlay').classList.remove('on');
+  };
+
+  mpAggiornaLista();
+  MP_POLL = setInterval(mpAggiornaLista, 3000);
 }
 
-async function mpCrea(){
+function mpStopPoll(){
+  if(MP_POLL){ clearInterval(MP_POLL); MP_POLL = null; }
+}
+
+function mpEntraDaLista(code){
+  mpSalvaNome();
+  mpStopPoll();
+  mpConnetti(code, 'guest');
+}
+
+async function mpAggiornaLista(){
+  const box = document.getElementById('mpLista');
+  if(!box){ mpStopPoll(); return; }
   try{
-    const r = await fetch(`https://${MP_HOST}/create?game=briscola`);
+    const r = await fetch(`https://${MP_HOST}/rooms`);
+    const {rooms} = await r.json();
+    const mie = rooms.filter(x=>x.game==='briscola');
+    if(!mie.length){
+      box.innerHTML = '<div style="color:#9fd3b5;font-size:13px;padding:10px 0">Nessuna partita aperta al momento. Creane una tu!</div>';
+      return;
+    }
+    const eta = ts => {
+      const m = Math.max(0, Math.round((Date.now()-ts)/60000));
+      return m===0 ? 'adesso' : `${m} min fa`;
+    };
+    box.innerHTML = mie.map(x=>`
+      <button class="btn" style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;padding:12px 14px;font-size:15px"
+        onclick="mpEntraDaLista('${x.code}')">
+        <span>🎺 ${x.name}</span>
+        <span style="font-size:12px;opacity:.75">${x.code} · ${eta(x.created)}</span>
+      </button>`).join('');
+  }catch(e){
+    box.innerHTML = '<div style="color:#e0a0a0;font-size:13px;padding:10px 0">Errore di rete, riprovo…</div>';
+  }
+}
+
+async function mpCrea(nome){
+  try{
+    const r = await fetch(`https://${MP_HOST}/create?game=briscola&name=${encodeURIComponent(nome||'Giocatore')}`);
     const {code} = await r.json();
     mpConnetti(code, 'host');
   }catch(e){
