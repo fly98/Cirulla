@@ -74,7 +74,9 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .msg .ok{color:#8ff0b0;font-weight:700}
 
 .scorecard{
-  margin:12px 2px 14px;
+  margin:12px auto 14px;
+  max-width:380px;
+  width:100%;
   background:#f5edd6;
   background-image:
     radial-gradient(ellipse at 12% 8%, rgba(0,0,0,.06), transparent 42%),
@@ -97,7 +99,9 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
   position:absolute; top:-14px; left:50%; transform:translateX(-50%) rotate(-4deg);
   font-size:22px; filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));
 }
-.scorecard table{width:100%;border-collapse:collapse}
+.scorecard table{width:100%;border-collapse:collapse;table-layout:fixed}
+.scorecard th:first-child, .scorecard td:first-child{width:56%}
+.scorecard th:not(:first-child), .scorecard td:not(:first-child){width:22%}
 .scorecard th{
   font-family:'Courier New',monospace; font-size:9px; letter-spacing:1.6px;
   color:#8a6d3b; text-transform:uppercase; text-align:right; padding:2px 4px 8px;
@@ -175,7 +179,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .dado.tenuto{transform:translateY(-4px)}
   .azioni .info{font-size:10.5px}
   .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:5px 0 3px}
-  .scorecard{padding:12px 8px 8px 20px;margin:8px 0 10px}
+  .scorecard{padding:12px 8px 8px 20px;margin:8px auto 10px;max-width:340px}
   .scorecard::before{left:12px}
   .scorecard::after{font-size:17px;top:-11px}
   .scorecard th{font-size:7.5px}
