@@ -174,12 +174,34 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
   font-family:'Caveat',cursive; font-weight:800; font-size:36px; color:#8b1e1e;
   border-top:1.6px solid #2b2110; border-bottom:4px double #2b2110; padding:11px 5px 9px;
 }
-.cella-vuota{color:#b3a684!important; font-family:'Caveat',cursive; font-size:26px!important}
+/* punteggi già segnati: inchiostro blu scuro, nessuno sfondo */
+.scorecard td span.segnato{color:#12305c;font-weight:700}
+/* caselle ancora libere e cliccabili: verde acceso su fondo evidenziato */
+.cella-vuota{color:#c0b494!important; font-family:'Caveat',cursive; font-size:26px!important}
 .cella-tap{
-  color:#4a6b4d!important; font-family:'Caveat',cursive; font-weight:700; font-size:29px;
-  border-bottom:1.5px dotted #4a6b4d; padding:1px 6px; cursor:pointer;
+  display:inline-block;
+  color:#1f5c2b!important; font-family:'Caveat',cursive; font-weight:800; font-size:29px;
+  background:rgba(76,175,80,.22);
+  border:1.5px dashed #3d8b45;
+  border-radius:7px;
+  padding:0 8px; cursor:pointer;
+  box-shadow:0 1px 3px rgba(0,0,0,.12);
 }
-.cella-tap:active{color:#33512f!important}
+.cella-tap:active{background:rgba(76,175,80,.42);color:#123f1c!important}
+
+/* annuncio della CPU: in basso, non copre mai i dadi */
+.avviso-cpu{
+  position:fixed;left:50%;bottom:22px;transform:translate(-50%, 26px);
+  background:#12492f;border:2px solid var(--oro);border-radius:14px;
+  padding:12px 20px;z-index:65;text-align:center;
+  box-shadow:0 8px 26px rgba(0,0,0,.6);
+  opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
+  max-width:86vw;
+}
+.avviso-cpu.on{opacity:1;transform:translate(-50%, 0)}
+.avviso-cpu .av-tit{font-size:16px;color:#fff}
+.avviso-cpu .av-tit b{color:var(--oro)}
+.avviso-cpu .av-det{font-size:12px;color:#9fd3b5;margin-top:3px;letter-spacing:1px}
 
 .footer{display:flex;justify-content:center;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
 
@@ -242,7 +264,10 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .scorecard tr.bonus td{font-size:12px}
   .scorecard tr.tot td{font-size:29px}
   .cella-vuota{font-size:21px!important}
-  .cella-tap{font-size:23px}
+  .cella-tap{font-size:23px;padding:0 6px}
+  .avviso-cpu{bottom:14px;padding:10px 15px;border-radius:12px}
+  .avviso-cpu .av-tit{font-size:13.5px}
+  .avviso-cpu .av-det{font-size:10.5px}
   .footer{font-size:9px;padding:4px 2px 8px}
   .bussata{padding:16px 20px}
   .bussata .pugno{font-size:34px}
@@ -309,6 +334,8 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   <div class="titolo" id="busTitolo"></div>
   <div class="dett" id="busDett"></div>
 </div>
+
+<div class="avviso-cpu" id="avvisoCpu"></div>
 
 <script>
 'use strict';
@@ -456,16 +483,36 @@ function confermaCategoria(key){
 function registraPunteggio(chi, key){
   const val = punteggio(ST.dadi.map(d=>d.v), key);
   ST.punteggi[chi][key] = val;
-  if(val>0 && (key==='yacht' || key==='scalag')){
+  if(val>0 && chi==='tu' && (key==='yacht' || key==='scalag')){
     mostraBussata(
-      key==='yacht' ? (chi==='tu' ? 'YACHT! 🎉' : 'Yacht della CPU') : (chi==='tu' ? 'Scala grande! 🎉' : 'Scala grande della CPU'),
-      `${chi==='tu'?'Segni':'La CPU segna'} ${val} punti in ${NOME[key]}`
+      key==='yacht' ? 'YACHT! 🎉' : 'Scala grande! 🎉',
+      `Segni ${val} punti in ${NOME[key]}`
     );
   }
   render();
   setMsg(`${chi==='tu'?'Segni':'La CPU segna'} <b>${val}</b> punti in <b>${NOME[key]}</b>.`);
   salvaPartita();
-  setTimeout(passaTurno, 550);
+  if(chi==='cpu'){
+    // annuncio in basso: i dadi restano in vista, si chiude da solo
+    const dadiTxt = ST.dadi.map(d=>d.v).join(' · ');
+    const colpaccio = val>0 && (key==='yacht' || key==='scalag' || key==='poker');
+    mostraAvvisoCpu(
+      `${colpaccio?'🎯 ':''}La CPU segna <b>${val}</b> in <b>${NOME[key]}</b>`,
+      `dadi: ${dadiTxt}`
+    );
+    setTimeout(passaTurno, 2600);
+  } else {
+    setTimeout(passaTurno, 550);
+  }
+}
+
+let avvisoTimer = null;
+function mostraAvvisoCpu(titolo, dettaglio){
+  const el = document.getElementById('avvisoCpu');
+  el.innerHTML = `<div class="av-tit">${titolo}</div><div class="av-det">${dettaglio}</div>`;
+  el.classList.add('on');
+  clearTimeout(avvisoTimer);
+  avvisoTimer = setTimeout(()=> el.classList.remove('on'), 2400);
 }
 
 function passaTurno(){
@@ -680,7 +727,7 @@ function renderTabella(){
     const val = ST.punteggi[p][key];
     if(val!=null){
       const rot = rotStabile(p+key);
-      return `<td><span style="display:inline-block;transform:rotate(${rot}deg)">${val}</span></td>`;
+      return `<td><span class="segnato" style="display:inline-block;transform:rotate(${rot}deg)">${val}</span></td>`;
     }
     if(p==='tu' && puoiSegnare){
       const anteprima = punteggio(dv, key);
