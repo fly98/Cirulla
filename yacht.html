@@ -50,19 +50,48 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .zona{margin:4px 0}
 .etichetta{font-size:10px;letter-spacing:1.5px;color:#9fd3b5;text-transform:uppercase;margin:2px 4px}
 
-.dadi{display:flex;gap:12px;justify-content:center;padding:16px 8px 10px}
+.dadi{display:flex;gap:18px;justify-content:center;padding:26px 8px 20px;perspective:900px}
 .dado{
-  width:64px;height:64px;background:#fdfaf3;border-radius:14px;
-  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
-  padding:9px;box-shadow:var(--ombra);cursor:pointer;
-  border:3px solid transparent;transition:transform .15s, border-color .15s, box-shadow .15s;
+  width:62px;height:62px;position:relative;
+  transform-style:preserve-3d;cursor:pointer;
+  transition:transform .55s cubic-bezier(.3,1.3,.5,1);
 }
-.dado.tenuto{border-color:var(--oro);box-shadow:0 0 0 3px rgba(232,194,102,.4),var(--ombra);transform:translateY(-6px)}
-.dado.disabilitato{cursor:default;opacity:.85}
+.dado .faccia{
+  position:absolute;inset:0;
+  background:linear-gradient(148deg,#fffdf7 0%,#f6efdf 55%,#e8dcc2 100%);
+  border-radius:12px;
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  padding:8px;
+  box-shadow:inset 0 0 0 1px rgba(120,100,60,.25), inset 0 -4px 9px rgba(120,100,60,.18);
+  backface-visibility:hidden;
+}
 .dado .pip{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
-.dado .pip.on::after{content:'';display:block;width:62%;height:62%;background:#1c2b22;border-radius:50%}
-.dado.lanciando{animation:scuoti .38s ease}
-@keyframes scuoti{0%,100%{transform:rotate(0) translateY(0)}25%{transform:rotate(-10deg)}75%{transform:rotate(10deg)}}
+.dado .pip.on::after{
+  content:'';display:block;width:60%;height:60%;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%, #4a4a4a, #16211a 70%);
+  box-shadow:inset 0 1.5px 2px rgba(255,255,255,.35), 0 1px 1px rgba(0,0,0,.3);
+}
+/* le sei facce del cubo: 1 fronte, 6 retro, 3 destra, 4 sinistra, 5 sopra, 2 sotto */
+.dado .f1{transform:translateZ(31px)}
+.dado .f6{transform:rotateY(180deg) translateZ(31px)}
+.dado .f3{transform:rotateY(90deg)  translateZ(31px)}
+.dado .f4{transform:rotateY(-90deg) translateZ(31px)}
+.dado .f5{transform:rotateX(90deg)  translateZ(31px)}
+.dado .f2{transform:rotateX(-90deg) translateZ(31px)}
+
+.dado .ombra{
+  position:absolute;left:50%;top:100%;width:74%;height:12px;
+  transform:translate(-50%, 16px) rotateX(84deg);
+  background:radial-gradient(ellipse, rgba(0,0,0,.5), transparent 72%);
+  pointer-events:none;
+}
+.dado.tenuto .cubo-hi{
+  position:absolute;inset:-7px;border-radius:15px;
+  border:2.5px solid var(--oro);box-shadow:0 0 14px rgba(232,194,102,.6);
+  pointer-events:none;
+}
+.dado.disabilitato{cursor:default}
+.dado.lanciando{transition:transform .78s cubic-bezier(.2,.7,.3,1)}
 
 .azioni{display:flex;gap:8px;justify-content:center;padding:6px 8px 2px;flex-wrap:wrap}
 .azioni .info{font-size:12px;color:#cfe8d8;align-self:center}
@@ -174,9 +203,16 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .chip{padding:3px 6px;font-size:9px;border-radius:7px}
   .chip b{font-size:12px}
   .btn{padding:6px 9px;font-size:11px}
-  .dadi{gap:7px;padding:10px 4px 6px}
-  .dado{width:52px;height:52px;padding:7px;border-radius:11px}
-  .dado.tenuto{transform:translateY(-4px)}
+  .dadi{gap:11px;padding:18px 4px 14px;perspective:700px}
+  .dado{width:46px;height:46px}
+  .dado .faccia{padding:6px;border-radius:9px}
+  .dado .f1{transform:translateZ(23px)}
+  .dado .f6{transform:rotateY(180deg) translateZ(23px)}
+  .dado .f3{transform:rotateY(90deg)  translateZ(23px)}
+  .dado .f4{transform:rotateY(-90deg) translateZ(23px)}
+  .dado .f5{transform:rotateX(90deg)  translateZ(23px)}
+  .dado .f2{transform:rotateX(-90deg) translateZ(23px)}
+  .dado .ombra{height:9px}
   .azioni .info{font-size:10.5px}
   .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:5px 0 3px}
   .scorecard{padding:12px 8px 8px 20px;margin:8px auto 10px;max-width:340px}
@@ -365,11 +401,11 @@ function registraFortunaTiro(chi, dadiVal, primoTiro){
 async function tiraDadiTu(){
   if(!ST || ST.fine || ST.turno!=='tu' || ST.tiriRimasti<=0 || BUSY) return;
   BUSY = true;
-  document.querySelectorAll('.dado').forEach(el=>{
-    if(!el.classList.contains('tenuto')) el.classList.add('lanciando');
-  });
-  await sleep(360);
-  ST.dadi.forEach(d=>{ if(!d.tenuto) d.v = 1+((Math.random()*6)|0); });
+  // calcolo prima i nuovi valori, poi faccio rotolare i cubi fino a quelle facce
+  const nuovi = ST.dadi.map(d => d.tenuto ? d.v : 1+((Math.random()*6)|0));
+  animaLancio(nuovi);
+  await sleep(820);
+  ST.dadi.forEach((d,i)=>{ d.v = nuovi[i]; });
   ST.tiriUsati++;
   ST.tiriRimasti--;
   registraFortunaTiro('tu', ST.dadi.map(d=>d.v), ST.tiriUsati===1);
@@ -508,17 +544,16 @@ async function eseguiTurnoCpu(){
   await sleep(500);
 
   while(ST.tiriRimasti>0){
-    document.querySelectorAll('.dado').forEach(el=>{
-      if(!el.classList.contains('tenuto')) el.classList.add('lanciando');
-    });
-    await sleep(360);
-    ST.dadi.forEach(d=>{ if(!d.tenuto) d.v = 1+((Math.random()*6)|0); });
+    const nuovi = ST.dadi.map(d => d.tenuto ? d.v : 1+((Math.random()*6)|0));
+    animaLancio(nuovi);
+    await sleep(820);
+    ST.dadi.forEach((d,i)=>{ d.v = nuovi[i]; });
     ST.tiriUsati++;
     ST.tiriRimasti--;
     registraFortunaTiro('cpu', ST.dadi.map(d=>d.v), ST.tiriUsati===1);
     render();
     setMsg(`La CPU tira… (${ST.tiriUsati}° tiro)`);
-    await sleep(700);
+    await sleep(600);
 
     if(ST.tiriRimasti>0){
       const vuoteKeys = CATEGORIE.filter(c=>ST.punteggi.cpu[c.key]==null).map(c=>c.key);
@@ -535,13 +570,47 @@ async function eseguiTurnoCpu(){
 }
 
 /* ============ RENDER ============ */
+// rotazione base che porta in primo piano la faccia col valore richiesto
+const ORIENTA = {
+  1:[  0,   0],
+  6:[  0, 180],
+  3:[  0, -90],
+  4:[  0,  90],
+  5:[-90,   0],
+  2:[ 90,   0],
+};
+
 function dadoEl(d, i, interattivo){
   const el = document.createElement('div');
   el.className = 'dado' + (d.tenuto?' tenuto':'') + (interattivo?'':' disabilitato');
-  const pips = PIP[d.v] || PIP[1];
-  el.innerHTML = pips.map(on=>`<div class="pip${on?' on':''}"></div>`).join('');
+  let html = '';
+  for(const f of [1,2,3,4,5,6]){
+    const pips = PIP[f];
+    html += `<div class="faccia f${f}">` + pips.map(on=>`<div class="pip${on?' on':''}"></div>`).join('') + `</div>`;
+  }
+  html += '<div class="ombra"></div>';
+  if(d.tenuto) html += '<div class="cubo-hi"></div>';
+  el.innerHTML = html;
+  const [rx, ry] = ORIENTA[d.v] || ORIENTA[1];
+  const su = d.tenuto ? -9 : 0;
+  el.style.transform = `translateY(${su}px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+  el.dataset.rx = rx; el.dataset.ry = ry;
   if(interattivo) el.onclick = ()=> toggleTenuta(i);
   return el;
+}
+
+// fa rotolare i dadi non tenuti fino ai nuovi valori
+function animaLancio(nuoviValori){
+  const els = document.querySelectorAll('#dadi .dado');
+  els.forEach((el, i) => {
+    if(ST.dadi[i].tenuto) return;
+    const [rx, ry] = ORIENTA[nuoviValori[i]] || ORIENTA[1];
+    // giri interi extra (multipli di 360) così l'atterraggio resta sulla faccia giusta
+    const giriX = 360 * (2 + ((Math.random()*2)|0));
+    const giriY = 360 * (1 + ((Math.random()*3)|0));
+    el.classList.add('lanciando');
+    el.style.transform = `translateY(0px) rotateX(${rx + giriX}deg) rotateY(${ry + giriY}deg)`;
+  });
 }
 
 function render(){
