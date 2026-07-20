@@ -449,6 +449,7 @@ async function gioca(p, carta){
   }
   BUSY = true;
 
+  if(mpAttivo() && MP.role==='host') mpInvia({t:'anim', k:'gioca', p, carta});
   d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
   await animaGiocataSlot(p, carta);
   d.banco.push({p, carta});
@@ -466,6 +467,7 @@ async function gioca(p, carta){
   // presa completa
   const vinc = vinceBanco();
   setMsg(`${p==='tu'?'Giochi':'CPU gioca'} ${nomeCarta(carta)}. <span class="ok">${vinc==='tu'?'Prendi tu!':'Prende la CPU.'}</span>`);
+  if(mpAttivo() && MP.role==='host') mpInvia({t:'anim', k:'presa', vinc});
   await animaPresaBanco(vinc);
   d.prese[vinc].push(d.banco[0].carta, d.banco[1].carta);
   d.banco = [];
@@ -483,6 +485,10 @@ async function gioca(p, carta){
       setMsg(`Peschi <b>${nomeCarta(tue)}</b>. La CPU pesca coperta.`);
     }
     render();
+    if(mpAttivo() && MP.role==='host'){
+      mpInvia({t:'anim', k:'pesca', p:vinc, carta:cartaV});
+      mpInvia({t:'anim', k:'pesca', p:perd, carta:cartaP});
+    }
     await Promise.all([
       animaPescataB(vinc, cartaV),
       (async()=>{ await sleep(140); await animaPescataB(perd, cartaP); })()
@@ -977,8 +983,28 @@ function mpSwap(st){
   return s;
 }
 
+function mpAccoda(fn){
+  if(!MP) return;
+  if(!MP.q) MP.q = Promise.resolve();
+  MP.q = MP.q.then(fn).catch(()=>{});
+}
+
+async function eseguiAnimRemota(m){
+  if(!MP || MP.role!=='guest' || !ST || !ST.d) return;
+  try{
+    const p = m.p==='tu' ? 'cpu' : 'tu';   // prospettiva ribaltata
+    if(m.k==='gioca')      await animaGiocataSlot(p, m.carta);
+    else if(m.k==='presa') await animaPresaBanco(m.vinc==='tu' ? 'cpu' : 'tu');
+    else if(m.k==='pesca') await animaPescataB(p, m.carta);
+  }catch(e){}
+}
+
 function mpMsg(m){
   if(!MP) return;
+  if(m.t==='anim' && MP.role==='guest'){
+    mpAccoda(()=> eseguiAnimRemota(m));
+    return;
+  }
   if(m.t==='presence'){
     if(m.who!==MP.role){
       MP.avversarioOn = m.on;
@@ -996,16 +1022,18 @@ function mpMsg(m){
     return;
   }
   if(m.t==='state' && MP.role==='guest'){
-    document.getElementById('overlay').classList.remove('on');
-    ST = mpSwap(m.state);
-    BUSY = false;
-    render();
-    setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : '🌐 Attendi la mossa dell\'avversario…');
-    // fine smazzata vista dal guest (solo se l'host non l'ha già conteggiata in questo stato)
-    if(ST.d && !ST.d.contata && ST.d.mani.tu.length===0 && ST.d.mani.cpu.length===0 && (!ST.d.banco || !ST.d.banco.length)){
-      const k = 's'+ST.smazzate;
-      if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 700); }
-    }
+    mpAccoda(()=>{
+      if(!MP) return;
+      document.getElementById('overlay').classList.remove('on');
+      ST = mpSwap(m.state);
+      BUSY = false;
+      render();
+      setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : '🌐 Attendi la mossa dell\'avversario…');
+      if(ST.d && !ST.d.contata && ST.d.mani.tu.length===0 && ST.d.mani.cpu.length===0 && (!ST.d.banco || !ST.d.banco.length)){
+        const k = 's'+ST.smazzate;
+        if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 700); }
+      }
+    });
     return;
   }
   if(m.t==='gioca' && MP.role==='host'){
@@ -1161,6 +1189,18 @@ const REGOLE = `
 
 /* ============ AVVIO ============ */
 function avvio(){
+  apriModal(`
+    <h2>🎺 Briscola</h2>
+    <div style="font-size:14px;color:#ddefe4;margin-bottom:16px">Come vuoi giocare?</div>
+    <button class="btn btn-big" id="btnAvvioOnline">🌐 Online — 1 vs 1 su due telefoni</button>
+    <button class="btn btn-big" style="margin-top:10px" id="btnAvvioLocale">🤖 In locale — contro la CPU</button>
+    <a href="index.html" style="display:block;text-align:center;color:#9fd3b5;font-size:13px;text-decoration:none;padding:12px 0 2px">🏠 Menu giochi</a>
+  `);
+  document.getElementById('btnAvvioOnline').onclick = ()=> mpApriLobby();
+  document.getElementById('btnAvvioLocale').onclick = ()=> avvioLocale();
+}
+
+function avvioLocale(){
   const salvata = caricaSalvataggio();
   if(salvata){
     apriModal(`
