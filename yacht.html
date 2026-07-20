@@ -9,6 +9,9 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <meta name="theme-color" content="#0b4d2c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
 <title>Yacht · FlyGames</title>
 <style>
 :root{ --oro:#e8c266; --ombra:0 4px 10px rgba(0,0,0,.35); }
@@ -70,21 +73,63 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 }
 .msg .ok{color:#8ff0b0;font-weight:700}
 
-.scorecard{margin:6px 0 10px;background:rgba(0,0,0,.18);border-radius:12px;padding:8px 10px;border:1px solid rgba(255,255,255,.08)}
-.scorecard table{width:100%;border-collapse:collapse;font-size:14px}
-.scorecard th{color:#9fd3b5;font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;text-align:right;padding:5px 4px}
-.scorecard th:first-child{text-align:left}
-.scorecard td{padding:6px 4px;border-top:1px solid rgba(255,255,255,.07);text-align:right;font-variant-numeric:tabular-nums}
-.scorecard td:first-child{text-align:left;color:#ddefe4}
-.scorecard tr.sezione td{color:#9fd3b5;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding-top:10px;border-top:none}
-.scorecard tr.bonus td{font-style:italic;color:#cfe8d8;font-size:12px}
-.scorecard tr.tot td{font-weight:800;color:var(--oro);border-top:2px solid rgba(232,194,102,.4)}
-.cella-vuota{color:#6a9a7e}
-.cella-tap{
-  background:rgba(232,194,102,.16);color:var(--oro);border-radius:6px;
-  padding:3px 7px;cursor:pointer;font-weight:700;
+.scorecard{
+  margin:12px 2px 14px;
+  background:#f5edd6;
+  background-image:
+    radial-gradient(ellipse at 12% 8%, rgba(0,0,0,.06), transparent 42%),
+    radial-gradient(ellipse at 90% 95%, rgba(0,0,0,.07), transparent 45%),
+    radial-gradient(ellipse at 95% 5%, rgba(120,90,40,.06), transparent 35%);
+  border-radius:3px 16px 16px 3px;
+  padding:16px 14px 10px 28px;
+  box-shadow:0 10px 28px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.5) inset;
+  transform:rotate(-.6deg);
+  position:relative;
+  border:1px solid rgba(0,0,0,.06);
 }
-.cella-tap:active{background:rgba(232,194,102,.32)}
+.scorecard::before{
+  content:'';
+  position:absolute; left:17px; top:6px; bottom:6px; width:1.5px;
+  background:#b5504f; opacity:.5;
+}
+.scorecard::after{
+  content:'📌';
+  position:absolute; top:-14px; left:50%; transform:translateX(-50%) rotate(-4deg);
+  font-size:22px; filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));
+}
+.scorecard table{width:100%;border-collapse:collapse}
+.scorecard th{
+  font-family:'Courier New',monospace; font-size:9px; letter-spacing:1.6px;
+  color:#8a6d3b; text-transform:uppercase; text-align:right; padding:2px 4px 8px;
+  border-bottom:1.4px solid rgba(138,109,59,.4);
+}
+.scorecard th:first-child{text-align:left}
+.scorecard td{
+  padding:3px 4px; text-align:right;
+  border-bottom:1px dashed rgba(120,105,70,.35);
+  font-family:'Caveat',cursive; font-size:21px; font-weight:700; color:#1a3c6e;
+}
+.scorecard td:first-child{
+  text-align:left; font-family:'Kalam',cursive; font-weight:700; font-size:14.5px; color:#2b2110;
+}
+.scorecard tr.sezione td{
+  font-family:'Courier New',monospace; font-size:8.5px; letter-spacing:1.6px; color:#8a6d3b;
+  text-transform:uppercase; padding-top:11px; border-bottom:none;
+}
+.scorecard tr.bonus td{
+  font-family:'Kalam',cursive; font-size:11.5px; color:#5a4a2a; font-style:italic;
+  border-bottom:1px dashed rgba(120,105,70,.35);
+}
+.scorecard tr.tot td{
+  font-family:'Caveat',cursive; font-weight:800; font-size:27px; color:#8b1e1e;
+  border-top:1.6px solid #2b2110; border-bottom:4px double #2b2110; padding:9px 4px 8px;
+}
+.cella-vuota{color:#c7bb98!important; font-family:'Caveat',cursive; font-size:19px!important}
+.cella-tap{
+  color:#5c7a5f!important; font-family:'Caveat',cursive; font-weight:700;
+  border-bottom:1.5px dotted #5c7a5f; padding:1px 5px; cursor:pointer;
+}
+.cella-tap:active{color:#33512f!important}
 
 .footer{display:flex;justify-content:center;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
 
@@ -130,9 +175,16 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .dado.tenuto{transform:translateY(-4px)}
   .azioni .info{font-size:10.5px}
   .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:5px 0 3px}
-  .scorecard{padding:6px 7px}
-  .scorecard table{font-size:11.5px}
-  .scorecard th{font-size:8.5px}
+  .scorecard{padding:12px 8px 8px 20px;margin:8px 0 10px}
+  .scorecard::before{left:12px}
+  .scorecard::after{font-size:17px;top:-11px}
+  .scorecard th{font-size:7.5px}
+  .scorecard td{font-size:16px;padding:2px 3px}
+  .scorecard td:first-child{font-size:11.5px}
+  .scorecard tr.sezione td{font-size:7px}
+  .scorecard tr.bonus td{font-size:9.5px}
+  .scorecard tr.tot td{font-size:21px}
+  .cella-vuota{font-size:15px!important}
   .footer{font-size:9px;padding:4px 2px 8px}
   .bussata{padding:16px 20px}
   .bussata .pugno{font-size:34px}
@@ -317,8 +369,8 @@ async function tiraDadiTu(){
   ST.tiriUsati++;
   ST.tiriRimasti--;
   registraFortunaTiro('tu', ST.dadi.map(d=>d.v), ST.tiriUsati===1);
-  render();
   BUSY = false;
+  render();
   if(ST.tiriRimasti===0){
     setMsg('Tiri finiti: tocca una casella per segnare il punteggio.');
   } else {
@@ -514,12 +566,20 @@ function render(){
   salvaPartita();
 }
 
+function rotStabile(seed){
+  let h=0; for(const c of seed) h = (h*31 + c.charCodeAt(0))|0;
+  return ((Math.abs(h)%7)-3);
+}
+
 function renderTabella(){
   const dv = ST.dadi.map(d=>d.v);
   const puoiSegnare = ST.turno==='tu' && ST.tiriUsati>0 && !BUSY;
   const cella = (p, key) => {
     const val = ST.punteggi[p][key];
-    if(val!=null) return `<td>${val}</td>`;
+    if(val!=null){
+      const rot = rotStabile(p+key);
+      return `<td><span style="display:inline-block;transform:rotate(${rot}deg)">${val}</span></td>`;
+    }
     if(p==='tu' && puoiSegnare){
       const anteprima = punteggio(dv, key);
       return `<td><span class="cella-tap" onclick="confermaCategoria('${key}')">${anteprima}</span></td>`;
