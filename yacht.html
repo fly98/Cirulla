@@ -519,6 +519,10 @@ async function tiraDadiTu(){
   BUSY = true;
   // calcolo prima i nuovi valori, poi faccio rotolare i cubi fino a quelle facce
   const nuovi = ST.dadi.map(d => d.tenuto ? d.v : 1+((Math.random()*6)|0));
+  if(mpAttivo() && MP.role==='host'){
+    const prima = ST.dadi.map(d=>({v:d.v, tenuto:d.tenuto}));
+    mpInvia({t:'anim', k:'lancio', valori:nuovi, prima});
+  }
   animaLancio(nuovi);
   await sleep(820);
   ST.dadi.forEach((d,i)=>{ d.v = nuovi[i]; });
