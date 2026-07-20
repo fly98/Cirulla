@@ -9,6 +9,9 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <meta name="theme-color" content="#0b4d2c">
+<link rel="manifest" href="manifest-briscola.json">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <title>Briscola · FlyGames</title>
 <style>
 :root{
@@ -165,8 +168,10 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .tot.big td{font-size:16px}
   .btn-big{font-size:15px;padding:11px 14px}
 }
-@media (max-width: 540px) and (display-mode: standalone){
-  body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
+@supports (-webkit-touch-callout: none){
+  @media (max-width: 540px) and (display-mode: standalone){
+    body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
+  }
 }
 </style>
 </head>
