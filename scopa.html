@@ -547,6 +547,9 @@ async function esegui(p, carta, presa){
   // 1) Animazione: con presa la carta vola dritta sulle carte che prende; senza presa si posa al centro
   d.mani[p] = d.mani[p].filter(c=>c.id!==carta.id);
   let txt = `${p==='tu'?'Giochi':cap(nomeAvvRaw())+' gioca'} ${nomeCarta(carta)}`;
+  if(mpAttivo() && MP.role==='host'){
+    mpInvia({t:'anim', k:'giocata', p, carta, presaIds: presa ? presa.cards.map(c=>c.id) : null});
+  }
   await animaGiocataEPresa(p, carta, presa);
 
   if(presa && presa.cards.length){
@@ -1288,6 +1291,17 @@ function mpAccoda(fn){
 async function eseguiAnimRemota(m){
   if(!MP || MP.role!=='guest') return;
   try{
+    if(m.k==='giocata' && ST && ST.d){
+      const p = m.p==='tu' ? 'cpu' : 'tu';   // prospettiva ribaltata
+      let presa = null;
+      if(m.presaIds && m.presaIds.length){
+        const set = new Set(m.presaIds);
+        const cards = ST.d.tavolo.filter(c=>set.has(c.id));
+        if(cards.length) presa = {cards, tipo:''};
+      }
+      await animaGiocataEPresa(p, m.carta, presa);
+      return;
+    }
     if(m.k==='banner'){
       let t = m.titolo||'';
       const nome = MP.nomeAvversario || "L'avversario";
