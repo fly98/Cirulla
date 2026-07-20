@@ -299,9 +299,9 @@ function nuovaSmazzata(){
   // fortuna della distribuzione: briscole ricevute
   const brTu = ST.d.mani.tu.filter(c=>c.s===ST.d.briscola.s).length;
   const brCpu = ST.d.mani.cpu.filter(c=>c.s===ST.d.briscola.s).length;
-  if(brTu!==brCpu) addFortuna((brTu-brCpu)*0.6, `Briscole servite: ${brTu} a te, ${brCpu} alla CPU (${brTu>brCpu?'+':''}${Math.round((brTu-brCpu)*0.6*10)/10})`);
+  if(brTu!==brCpu) addFortuna((brTu-brCpu)*0.6, `Briscole servite: ${brTu} a te, ${brCpu} ${aAvv()} (${brTu>brCpu?'+':''}${Math.round((brTu-brCpu)*0.6*10)/10})`);
   render();
-  setMsg(primo==='tu' ? 'Tocca a te: gioca una carta.' : 'Apre la CPU.');
+  setMsg(primo==='tu' ? 'Tocca a te: gioca una carta.' : `Apre ${nomeAvvRaw()}.`);
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
 }
 
@@ -499,7 +499,7 @@ async function gioca(p, carta){
     for(const [chi, c] of [[vinc, cartaV], [perd, cartaP]]){
       if(c.s === d.briscola.s){
         const peso = (c.v===1 || c.v===3) ? 1 : 0.6;   // asso/tre di briscola pesano di più
-        addFortuna(chi==='tu'?peso:-peso, `Briscola pescata ${chi==='tu'?'da te':'dalla CPU'}: ${nomeCarta(c)} (${chi==='tu'?'+':'-'}${peso})`);
+        addFortuna(chi==='tu'?peso:-peso, `Briscola pescata ${chi==='tu'?'da te':daAvv()}: ${nomeCarta(c)} (${chi==='tu'?'+':'-'}${peso})`);
       }
     }
   }
@@ -1060,6 +1060,16 @@ function nomeAvvRaw(){
   if(mpAttivo()) return MP.nomeAvversario || "l'avversario";
   return 'la CPU';
 }
+// forme grammaticali: offline "alla CPU", online "a Mena", e con l'articolo "all'avversario"
+function _prepAvv(semplice, apostrofo, conArticolo){
+  const n = nomeAvvRaw();
+  if(n === 'la CPU') return conArticolo + ' CPU';        // alla CPU / dalla CPU / della CPU
+  if(n.startsWith("l'")) return apostrofo + n.slice(2);  // all'avversario / dall'avversario
+  return semplice + ' ' + n;                              // a Mena / da Mena / di Mena
+}
+function aAvv(){  return _prepAvv('a',  "all'",  'alla'); }
+function daAvv(){ return _prepAvv('da', "dall'", 'dalla'); }
+function diAvv(){ return _prepAvv('di', "dell'", 'della'); }
 const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
 
 function mpMsg(m){
@@ -1167,7 +1177,7 @@ function riprendiPartita(salvata){
     render(); setTimeout(fineSmazzata, 600); return;
   }
   render();
-  setMsg('Partita ripresa: ' + (ST.d.turno==='tu' ? 'tocca a te.' : 'gioca la CPU.'));
+  setMsg('Partita ripresa: ' + (ST.d.turno==='tu' ? 'tocca a te.' : `gioca ${nomeAvvRaw()}.`));
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
 }
 function registraStorico(){
