@@ -124,5 +124,10 @@ badge('tressette_save_v1', 'gTressette');
 badge('briscola_save_v1', 'gBriscola');
 badge('yacht_save_v1', 'gYacht');
 </script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+</script>
 </body>
 </html>
