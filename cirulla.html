@@ -422,6 +422,7 @@ function nuovaSmazzata(){
   if(n>0){
     // Accuso del mazziere: le carte restano in vista finché non confermi (persiste anche nel salvataggio)
     ST.d.accusoPendente = {n, sommaTxt, mattaVal, somma};
+    if(mpAttivo() && MP.role==='host') mpInviaStato();
     mostraAccusoPendente();
     return;
   }
@@ -429,6 +430,18 @@ function nuovaSmazzata(){
   setMsg('Tocca una carta della tua mano.');
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
   else dichiaraSeDeve('tu');
+}
+
+// Vista passiva per chi si è unito: stesse informazioni dell'host, nessun pulsante (risolve solo l'host)
+function mostraAccusoPendenteGuest(){
+  const ap = ST.d.accusoPendente;
+  if(!ap) return;
+  const {n, sommaTxt, mattaVal, somma} = ap;
+  const m = ST.mazziere;
+  document.querySelectorAll('#tavolo .carta').forEach(el=>el.classList.add('presa-evid'));
+  setMsg(`✋ Le 4 carte in tavola ${mattaVal?`fanno <b>${sommaTxt}</b> — la matta 7 di bastoni vale ${mattaVal}`:`sommano <b>${somma}</b>`}: accuso del mazziere, ${n} scop${n>1?'e':'a'} ${m==='tu'?'a te':`a ${nomeAvvRaw()}`}!`);
+  const box = document.getElementById('scelte');
+  box.innerHTML = `<div style="text-align:center;color:#9fd3b5;font-size:13px;padding:8px">⏳ In attesa che ${m==='tu'?'tu confermi dall\'altro telefono':nomeAvvRaw()+' confermi'}…</div>`;
 }
 
 function mostraAccusoPendente(){
@@ -448,6 +461,7 @@ function mostraAccusoPendente(){
   okBtn.textContent = `✓ OK — ${m==='tu'?'porta a casa':'vanno alla CPU'}`;
   okBtn.onclick = async ()=>{
     box.innerHTML = '';
+    if(mpAttivo() && MP.role==='host') mpInvia({t:'anim', k:'accuso', vinc:m});
     await animaAccuso(m);
     ST.d.prese[m].push(...ST.d.tavolo.splice(0,4));
     ST.d.scope[m] += n;
@@ -1495,6 +1509,11 @@ async function eseguiAnimRemota(m){
       else if(t.startsWith('SCOPA!')) t = 'Scopa di ' + nome + ' 🧹';
       mostraBussata(t, m.dett||'');
     }
+    else if(m.k==='accuso' && ST && ST.d){
+      document.getElementById('scelte').innerHTML='';
+      MP.accusoMostrato = false;
+      await animaAccuso(m.vinc==='tu' ? 'cpu' : 'tu');   // prospettiva ribaltata
+    }
   }catch(e){}
 }
 
@@ -1550,7 +1569,8 @@ function mpMsg(m){
       BUSY = false;
       render();
       setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : `🌐 Attendi la mossa di ${MP.nomeAvversario||"dell'avversario"}…`);
-      if(ST.d && ST.d.accusoPendente) setMsg('🌐 Accuso del mazziere in corso: attendi…');
+      if(ST.d && ST.d.accusoPendente){ mostraAccusoPendenteGuest(); }
+      else if(MP) MP.accusoMostrato = false;
       if(ST.d && ST.d.contata){
         const k = 's'+ST.smazzate;
         if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 300); }
