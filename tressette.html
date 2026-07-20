@@ -292,7 +292,7 @@ function nuovaSmazzata(){
   // fortuna della distribuzione: assi ricevuti (attesi 2 a testa)
   const assiTu = ST.d.mani.tu.filter(c=>c.v===1).length;
   const assiCpu = ST.d.mani.cpu.filter(c=>c.v===1).length;
-  if(assiTu-assiCpu !== 0) addFortuna((assiTu-assiCpu)*0.5, `Assi alla distribuzione: ${assiTu} a te, ${assiCpu} alla CPU (${assiTu>assiCpu?'+':''}${(assiTu-assiCpu)*0.5})`);
+  if(assiTu-assiCpu !== 0) addFortuna((assiTu-assiCpu)*0.5, `Assi alla distribuzione: ${assiTu} a te, ${assiCpu} ${aAvv()} (${assiTu>assiCpu?'+':''}${(assiTu-assiCpu)*0.5})`);
 
   controllaAccuse('tu');
   controllaAccuse('cpu');
@@ -323,7 +323,7 @@ function mostraAccusa(titolo, dettaglio){
 function controllaAccuse(p){
   const d = ST.d;
   const mano = d.mani[p];
-  const chi = p==='tu' ? 'Accusi' : 'La CPU accusa';
+  const chi = p==='tu' ? 'Accusi' : `${cap(nomeAvvRaw())} accusa`;
 
   // napoletana: A+2+3 dello stesso seme
   for(const s of SEMI){
@@ -333,7 +333,7 @@ function controllaAccuse(p){
     if(has){
       d.accusate[p].push(key);
       d.accuse[p].push({txt:`Napoletana di ${s.nome}`, punti:3});
-      addFortuna(p==='tu'?3:-3, `Napoletana di ${s.nome} ${p==='tu'?'tua':'della CPU'} (+3)`);
+      addFortuna(p==='tu'?3:-3, `Napoletana di ${s.nome} ${p==='tu'?'tua':diAvv()} (+3)`);
       mostraAccusa(`${chi}: Napoletana!`, `Asso, Due e Tre di ${s.nome} → 3 punti`);
     }
   }
@@ -347,7 +347,7 @@ function controllaAccuse(p){
       const punti = (n===4)?4:3;
       const nome = v===1?'assi':(v===2?'due':'tre');
       d.accuse[p].push({txt:`${n===4?'Quattro':'Tre'} ${nome}`, punti});
-      addFortuna(p==='tu'?punti:-punti, `${n===4?'Quattro':'Tre'} ${nome} ${p==='tu'?'tuoi':'della CPU'} (+${punti})`);
+      addFortuna(p==='tu'?punti:-punti, `${n===4?'Quattro':'Tre'} ${nome} ${p==='tu'?'tuoi':diAvv()} (+${punti})`);
       mostraAccusa(`${chi}: ${n===4?'quattro':'tre'} ${nome}!`, `Buongioco da ${punti} punti`);
     }
   }
@@ -540,8 +540,8 @@ async function gioca(p, carta){
     d.pescateNote[perd].push(cartaP.id);
     render();
 
-    if(cartaV.v===1) addFortuna(vinc==='tu'?0.5:-0.5, `Asso pescato ${vinc==='tu'?'da te':'dalla CPU'} (+0.5)`);
-    if(cartaP.v===1) addFortuna(perd==='tu'?0.5:-0.5, `Asso pescato ${perd==='tu'?'da te':'dalla CPU'} (+0.5)`);
+    if(cartaV.v===1) addFortuna(vinc==='tu'?0.5:-0.5, `Asso pescato ${vinc==='tu'?'da te':daAvv()} (+0.5)`);
+    if(cartaP.v===1) addFortuna(perd==='tu'?0.5:-0.5, `Asso pescato ${perd==='tu'?'da te':daAvv()} (+0.5)`);
     controllaAccuse(vinc);
     controllaAccuse(perd);
     if(d.tallone.length===0) setMsg('Tallone esaurito: ultime dieci mani!');
@@ -798,7 +798,7 @@ function fineSmazzata(){
      <tr><th>Punto</th><th class="n">Tu</th><th class="n">${mpAttivo()?(MP.nomeAvversario||'Avv.'):'CPU'}</th></tr>
      <tr><td>Carte (${a.terzi}⁄3 vs ${b.terzi}⁄3)</td><td class="n">${a.carte}</td><td class="n">${b.carte}</td></tr>
      <tr><td>Ultima presa</td><td class="n">${a.ultima||'—'}</td><td class="n">${b.ultima||'—'}</td></tr>
-     ${(a.accuse||b.accuse)?rigaEvid(`📣 Accuse${accTxt('tu')?' ('+accTxt('tu')+')':''}${accTxt('cpu')?' [CPU: '+accTxt('cpu')+']':''}`, a.accuse, b.accuse):''}
+     ${(a.accuse||b.accuse)?rigaEvid(`📣 Accuse${accTxt('tu')?' ('+accTxt('tu')+')':''}${accTxt('cpu')?' ['+(mpAttivo()?(MP.nomeAvversario||'Avv.'):'CPU')+': '+accTxt('cpu')+']':''}`, a.accuse, b.accuse):''}
      <tr class="tot"><td>Totale smazzata</td><td class="n">${pt.tu}</td><td class="n">${pt.cpu}</td></tr>
      <tr class="tot big"><td>PARTITA</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
    </table>`;
@@ -1079,8 +1079,13 @@ async function eseguiAnimRemota(m){
     else if(m.k==='pesca') await animaPescata(p, m.carta);
     else if(m.k==='banner'){
       let titolo = m.titolo||'';
-      if(titolo.startsWith('La CPU accusa')) titolo = 'Accusi' + titolo.slice('La CPU accusa'.length);
-      else if(titolo.startsWith('Accusi')) titolo = (MP.nomeAvversario||'L\'avversario') + ' accusa' + titolo.slice('Accusi'.length);
+      // l'host scrive dalla SUA prospettiva: qui va ribaltata
+      if(titolo.startsWith('Accusi')){
+        titolo = (MP.nomeAvversario||"L'avversario") + ' accusa' + titolo.slice('Accusi'.length);
+      } else {
+        const i = titolo.indexOf(' accusa');
+        if(i > 0) titolo = 'Accusi' + titolo.slice(i + ' accusa'.length);
+      }
       mostraAccusa(titolo, m.dett||'');
     }
   }catch(e){}
@@ -1090,6 +1095,16 @@ function nomeAvvRaw(){
   if(mpAttivo()) return MP.nomeAvversario || "l'avversario";
   return 'la CPU';
 }
+// forme grammaticali: offline "alla CPU", online "a Mena", e con l'articolo "all'avversario"
+function _prepAvv(semplice, apostrofo, conArticolo){
+  const n = nomeAvvRaw();
+  if(n === 'la CPU') return conArticolo + ' CPU';        // alla CPU / dalla CPU / della CPU
+  if(n.startsWith("l'")) return apostrofo + n.slice(2);  // all'avversario / dall'avversario
+  return semplice + ' ' + n;                              // a Mena / da Mena / di Mena
+}
+function aAvv(){  return _prepAvv('a',  "all'",  'alla'); }
+function daAvv(){ return _prepAvv('da', "dall'", 'dalla'); }
+function diAvv(){ return _prepAvv('di', "dell'", 'della'); }
 const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
 
 function mpMsg(m){
@@ -1196,7 +1211,7 @@ function riprendiPartita(salvata){
     render(); setTimeout(fineSmazzata, 600); return;
   }
   render();
-  setMsg('Partita ripresa: ' + (ST.d.turno==='tu' ? 'tocca a te.' : 'gioca la CPU.'));
+  setMsg('Partita ripresa: ' + (ST.d.turno==='tu' ? 'tocca a te.' : `gioca ${nomeAvvRaw()}.`));
   if(ST.d.turno==='cpu') setTimeout(turnoCpu, 900);
 }
 function registraStorico(){
