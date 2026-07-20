@@ -190,18 +190,19 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .cella-tap:active{background:rgba(76,175,80,.42);color:#123f1c!important}
 
 /* annuncio della CPU: in basso, non copre mai i dadi */
+.zona-dadi{position:relative}
 .avviso-cpu{
-  position:fixed;left:50%;bottom:22px;transform:translate(-50%, 26px);
+  position:absolute;left:50%;top:calc(100% - 58px);transform:translate(-50%, -10px);
   background:#12492f;border:2px solid var(--oro);border-radius:14px;
-  padding:12px 20px;z-index:65;text-align:center;
+  padding:12px 22px;z-index:65;text-align:center;
   box-shadow:0 8px 26px rgba(0,0,0,.6);
   opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
-  max-width:86vw;
+  max-width:88vw;
 }
 .avviso-cpu.on{opacity:1;transform:translate(-50%, 0)}
-.avviso-cpu .av-tit{font-size:16px;color:#fff}
+.avviso-cpu .av-tit{font-size:17px;color:#fff}
 .avviso-cpu .av-tit b{color:var(--oro)}
-.avviso-cpu .av-det{font-size:12px;color:#9fd3b5;margin-top:3px;letter-spacing:1px}
+.avviso-cpu .av-det{font-size:12.5px;color:#9fd3b5;margin-top:3px;letter-spacing:1px}
 
 .footer{display:flex;justify-content:center;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
 
@@ -265,7 +266,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .scorecard tr.tot td{font-size:29px}
   .cella-vuota{font-size:21px!important}
   .cella-tap{font-size:23px;padding:0 6px}
-  .avviso-cpu{bottom:14px;padding:10px 15px;border-radius:12px}
+  .avviso-cpu{top:calc(100% - 46px);padding:9px 14px;border-radius:11px}
   .avviso-cpu .av-tit{font-size:13.5px}
   .avviso-cpu .av-det{font-size:10.5px}
   .footer{font-size:9px;padding:4px 2px 8px}
@@ -302,9 +303,10 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   </div>
 </header>
 
-<div class="zona">
+<div class="zona zona-dadi">
   <div class="etichetta" id="turnoInfo">—</div>
   <div class="dadi" id="dadi"></div>
+  <div class="avviso-cpu" id="avvisoCpu"></div>
   <div class="azioni">
     <button class="btn" id="btnTira">🎲 Tira i dadi</button>
     <span class="info" id="tiriInfo"></span>
@@ -334,8 +336,6 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   <div class="titolo" id="busTitolo"></div>
   <div class="dett" id="busDett"></div>
 </div>
-
-<div class="avviso-cpu" id="avvisoCpu"></div>
 
 <script>
 'use strict';
