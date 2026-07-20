@@ -783,6 +783,7 @@ function fineSmazzata(){
   let coda;
   if(vinceTu || vinceCpu){
     ST.fine = true;
+    if(mpAttivo()) mpCancellaSessione();
     registraStorico();
     const esito = vinceTu ? 'Hai vinto tu! 🏆' : `Vince ${nomeAvvRaw()} ${mpAttivo()?'🌐':'🤖'}`;
     const sfigaPartita = buildSfiga(ST.fortunaTot, `Indice di sfiga — intera partita (${ST.smazzate} mani)`,
@@ -936,9 +937,32 @@ async function mpCrea(nome){
   }
 }
 
+const MP_SESSION_KEY = 'briscola_mp_session';
+
+function mpSalvaSessione(){
+  if(!MP) return;
+  try{
+    localStorage.setItem(MP_SESSION_KEY, JSON.stringify({
+      code: MP.code, role: MP.role, avv: MP.nomeAvversario||null, quando: Date.now()
+    }));
+  }catch(e){}
+}
+function mpCancellaSessione(){
+  try{ localStorage.removeItem(MP_SESSION_KEY); }catch(e){}
+}
+function mpSessione(){
+  try{
+    const s = JSON.parse(localStorage.getItem(MP_SESSION_KEY)||'null');
+    if(!s || !s.code) return null;
+    if(Date.now() - s.quando > 12*3600*1000) return null;  // scade dopo 12 ore
+    return s;
+  }catch(e){ return null; }
+}
+
 function mpConnetti(code, role){
   MP = {role, code, ws:null, avversarioOn:false, fineViste:{}};
-  ST = null;   // la partita online riparte da zero nella stanza
+  ST = null;   // la partita online riparte da zero nella stanza (o dal resync della stanza)
+  mpSalvaSessione();
   mpSocket();
   apriModal(`
     <h2>🌐 Stanza <span style="color:var(--oro);letter-spacing:4px">${code}</span></h2>
@@ -1014,6 +1038,7 @@ function mpMsg(m){
   if(!MP) return;
   if(m.t==='nome'){
     MP.nomeAvversario = (m.nome||'').trim().slice(0,20) || null;
+    mpSalvaSessione();
     if(ST && ST.d) render();
     return;
   }
@@ -1034,6 +1059,16 @@ function mpMsg(m){
         setMsg(`🌐 ${MP.nomeAvversario||'Avversario'} è dei nostri. Si gioca!`);
       }
       if(!m.on) setMsg(`🌐 ${MP.nomeAvversario||"L'avversario"} si è disconnesso: appena rientra si riprende.`);
+    }
+    return;
+  }
+  if(m.t==='state' && MP.role==='host'){
+    if(!ST || !ST.d){
+      ST = m.state;   // resync dopo chiusura: lo stato è già nella prospettiva dell'host
+      BUSY = false;
+      document.getElementById('overlay').classList.remove('on');
+      render();
+      setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Partita ripresa: tocca a te.' : `🌐 Partita ripresa: attendi ${MP.nomeAvversario||"l'avversario"}…`);
     }
     return;
   }
@@ -1062,6 +1097,7 @@ function mpMsg(m){
 }
 
 function mpEsci(){
+  mpCancellaSessione();
   if(MP){ try{ MP.ws && MP.ws.close(); }catch(e){} }
   MP = null;
   document.getElementById('overlay').classList.remove('on');
@@ -1205,13 +1241,21 @@ const REGOLE = `
 
 /* ============ AVVIO ============ */
 function avvio(){
+  const sess = mpSessione();
   apriModal(`
     <h2>🎺 Briscola</h2>
     <div style="font-size:14px;color:#ddefe4;margin-bottom:16px">Come vuoi giocare?</div>
+    ${sess ? `<button class="btn btn-big" style="margin-bottom:10px" id="btnAvvioRiprendiMp">▶︎ Riprendi la partita online${sess.avv?' con '+sess.avv:''} (${sess.code})</button>` : ''}
     <button class="btn btn-big" id="btnAvvioOnline">🌐 Online — 1 vs 1 su due telefoni</button>
     <button class="btn btn-big" style="margin-top:10px" id="btnAvvioLocale">🤖 In locale — contro la CPU</button>
     <a href="index.html" style="display:block;text-align:center;color:#9fd3b5;font-size:13px;text-decoration:none;padding:12px 0 2px">🏠 Menu giochi</a>
   `);
+  if(sess){
+    document.getElementById('btnAvvioRiprendiMp').onclick = ()=>{
+      mpConnetti(sess.code, sess.role);
+      if(sess.avv && MP) MP.nomeAvversario = sess.avv;
+    };
+  }
   document.getElementById('btnAvvioOnline').onclick = ()=> mpApriLobby();
   document.getElementById('btnAvvioLocale').onclick = ()=> avvioLocale();
 }
