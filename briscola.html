@@ -755,6 +755,7 @@ function setMsg(html){ document.getElementById('msg').innerHTML = html; }
 /* ============ FINE SMAZZATA ============ */
 function fineSmazzata(){
   const d = ST.d;
+  const giaContata = !!d.contata;   // stato gia' definitivo ricevuto dall'host: non si ricalcola
   d.contata = true;
   const puTu = d.prese.tu.reduce((a,c)=>a+PUNTI[c.v],0);
   const puCpu = d.prese.cpu.reduce((a,c)=>a+PUNTI[c.v],0);
@@ -762,9 +763,11 @@ function fineSmazzata(){
   if(puTu>puCpu){ segnoA='tu'; esitoSmazzata=`Smazzata tua: ${puTu}–${puCpu}`; }
   else if(puCpu>puTu){ segnoA='cpu'; esitoSmazzata=`Smazzata ${mpAttivo()?'a '+nomeAvvRaw():'alla CPU'}: ${puCpu}–${puTu}`; }
   else esitoSmazzata='Patta 60–60: nessun segno.';
-  if(segnoA) ST.tot[segnoA]++;
-  ST.fortunaTot += d.fortuna;
-  ST.smazzate++;
+  if(!giaContata){
+    if(segnoA) ST.tot[segnoA]++;
+    ST.fortunaTot += d.fortuna;
+    ST.smazzate++;
+  }
 
   const html = `
    <h2>Fine smazzata</h2>
@@ -796,7 +799,7 @@ function fineSmazzata(){
 
   document.getElementById('pTu').textContent = ST.tot.tu;
   document.getElementById('pCpu').textContent = ST.tot.cpu;
-  if(mpAttivo() && MP.role==='host') mpInviaStato();
+  if(mpAttivo() && MP.role==='host' && !giaContata) mpInviaStato();
   apriModal(html + sfigaHtml + coda);
 }
 
@@ -1080,9 +1083,9 @@ function mpMsg(m){
       BUSY = false;
       render();
       setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : `🌐 Attendi la mossa di ${MP.nomeAvversario||"dell'avversario"}…`);
-      if(ST.d && !ST.d.contata && ST.d.mani.tu.length===0 && ST.d.mani.cpu.length===0 && (!ST.d.banco || !ST.d.banco.length)){
+      if(ST.d && ST.d.contata){
         const k = 's'+ST.smazzate;
-        if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 700); }
+        if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 300); }
       }
     });
     return;
