@@ -176,7 +176,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   <h1>BRISCOLA<small>classica · a 3 segni</small></h1>
   <div class="punti">
     <div class="chip">SEGNI TU<b id="pTu">0</b></div>
-    <div class="chip">SEGNI CPU<b id="pCpu">0</b></div>
+    <div class="chip"><span id="chipCpuLbl">SEGNI CPU</span><b id="pCpu">0</b></div>
     <div class="chip">MAZZO<b id="pTallone">34</b></div>
   </div>
   <div style="display:flex;gap:6px">
@@ -187,7 +187,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 </header>
 
 <div class="zona">
-  <div class="etichetta">CPU · <span id="cpuInfo">—</span></div>
+  <div class="etichetta"><span id="cpuNome">CPU</span> · <span id="cpuInfo">—</span></div>
   <div class="cpu-hand" id="cpuHand"></div>
 </div>
 
@@ -199,7 +199,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
       <div class="retro"></div><div class="retro"></div>
       <div class="conta" id="contaTallone">34</div>
     </div>
-    <div class="slot" id="slotCpu"><div class="chi">CPU</div></div>
+    <div class="slot" id="slotCpu"><div class="chi" id="slotCpuChi">CPU</div></div>
     <div class="slot" id="slotTu"><div class="chi">TU</div></div>
   </div>
 </div>
@@ -457,7 +457,7 @@ async function gioca(p, carta){
   render();
 
   if(d.banco.length<2){
-    setMsg(`${p==='tu'?'Giochi':'CPU gioca'} ${nomeCarta(carta)}.`);
+    setMsg(`${p==='tu'?'Giochi':cap(nomeAvvRaw())+' gioca'} ${nomeCarta(carta)}.`);
     BUSY = false;
     salvaPartita();
     if(d.turno==='cpu') setTimeout(turnoCpu, 750);
@@ -466,7 +466,7 @@ async function gioca(p, carta){
 
   // presa completa
   const vinc = vinceBanco();
-  setMsg(`${p==='tu'?'Giochi':'CPU gioca'} ${nomeCarta(carta)}. <span class="ok">${vinc==='tu'?'Prendi tu!':'Prende la CPU.'}</span>`);
+  setMsg(`${p==='tu'?'Giochi':cap(nomeAvvRaw())+' gioca'} ${nomeCarta(carta)}. <span class="ok">${vinc==='tu'?'Prendi tu!':'Prende '+nomeAvvRaw()+'.'}</span>`);
   if(mpAttivo() && MP.role==='host') mpInvia({t:'anim', k:'presa', vinc});
   await animaPresaBanco(vinc);
   d.prese[vinc].push(d.banco[0].carta, d.banco[1].carta);
@@ -482,7 +482,7 @@ async function gioca(p, carta){
     if(d.tallone.length===0){
       setMsg(`Peschi <b>${nomeCarta(tue)}</b>. Mazzo finito: ultime tre mani!`);
     } else {
-      setMsg(`Peschi <b>${nomeCarta(tue)}</b>. La CPU pesca coperta.`);
+      setMsg(`Peschi <b>${nomeCarta(tue)}</b>. ${cap(nomeAvvRaw())} pesca coperta.`);
     }
     render();
     if(mpAttivo() && MP.role==='host'){
@@ -678,9 +678,13 @@ function render(){
   }
   document.getElementById('pTu').textContent = ST.tot.tu;
   document.getElementById('pCpu').textContent = ST.tot.cpu;
+  const nomeA = mpAttivo() ? (MP.nomeAvversario || 'Avversario') : 'CPU';
+  document.getElementById('cpuNome').textContent = nomeA;
+  document.getElementById('slotCpuChi').textContent = nomeA.toUpperCase().slice(0,10);
+  document.getElementById('chipCpuLbl').textContent = mpAttivo() ? 'SEGNI '+nomeA.toUpperCase().slice(0,8) : 'SEGNI CPU';
   const livLabel = mpAttivo() ? '🌐' : {facile:'😴', medio:'🎯', difficile:'🧠'}[ST.livello||'medio'];
   const chiCpu = mpAttivo() ? 'avversario' : 'CPU';
-  document.getElementById('cpuInfo').textContent = `${livLabel} ${d.mani.cpu.length} carte` + (d.turno==='cpu'?` · tocca a ${mpAttivo()?'all\'avversario':'lei'}`:'');
+  document.getElementById('cpuInfo').textContent = `${livLabel} ${d.mani.cpu.length} carte` + (d.turno==='cpu'?` · tocca a ${mpAttivo()?(MP.nomeAvversario||'lui'):'lei'}`:'');
   document.getElementById('tuInfo').textContent  = (d.turno==='tu') ? 'tocca a te' : 'attendi…';
   const puTu = d.prese.tu.reduce((a,c)=>a+PUNTI[c.v],0);
   const puCpu = d.prese.cpu.reduce((a,c)=>a+PUNTI[c.v],0);
@@ -756,7 +760,7 @@ function fineSmazzata(){
   const puCpu = d.prese.cpu.reduce((a,c)=>a+PUNTI[c.v],0);
   let esitoSmazzata, segnoA = null;
   if(puTu>puCpu){ segnoA='tu'; esitoSmazzata=`Smazzata tua: ${puTu}–${puCpu}`; }
-  else if(puCpu>puTu){ segnoA='cpu'; esitoSmazzata=`Smazzata alla CPU: ${puCpu}–${puTu}`; }
+  else if(puCpu>puTu){ segnoA='cpu'; esitoSmazzata=`Smazzata ${mpAttivo()?'a '+nomeAvvRaw():'alla CPU'}: ${puCpu}–${puTu}`; }
   else esitoSmazzata='Patta 60–60: nessun segno.';
   if(segnoA) ST.tot[segnoA]++;
   ST.fortunaTot += d.fortuna;
@@ -765,7 +769,7 @@ function fineSmazzata(){
   const html = `
    <h2>Fine smazzata</h2>
    <table>
-     <tr><th>Punto</th><th class="n">Tu</th><th class="n">CPU</th></tr>
+     <tr><th>Punto</th><th class="n">Tu</th><th class="n">${mpAttivo()?(MP.nomeAvversario||'Avv.'):'CPU'}</th></tr>
      <tr><td>Punti carte (su 120)</td><td class="n">${puTu}</td><td class="n">${puCpu}</td></tr>
      <tr class="evid"><td>Segno</td><td class="n">${segnoA==='tu'?'✔':'—'}</td><td class="n">${segnoA==='cpu'?'✔':'—'}</td></tr>
      <tr class="tot big"><td>SEGNI (a 3)</td><td class="n">${ST.tot.tu}</td><td class="n">${ST.tot.cpu}</td></tr>
@@ -780,7 +784,7 @@ function fineSmazzata(){
   if(vinceTu || vinceCpu){
     ST.fine = true;
     registraStorico();
-    const esito = vinceTu ? 'Hai vinto tu! 🏆' : 'Vince la CPU 🤖';
+    const esito = vinceTu ? 'Hai vinto tu! 🏆' : `Vince ${nomeAvvRaw()} ${mpAttivo()?'🌐':'🤖'}`;
     const sfigaPartita = buildSfiga(ST.fortunaTot, `Indice di sfiga — intera partita (${ST.smazzate} mani)`,
       `Somma della fortuna di tutte le mani: ${ST.fortunaTot>0?'+':''}${Math.round(ST.fortunaTot*10)/10}`);
     coda = `<p class="tot big" style="font-size:24px;margin:10px 0">${esito}</p>` + sfigaPartita +
@@ -950,6 +954,7 @@ function mpSocket(){
   try{ if(MP.ws) MP.ws.close(); }catch(e){}
   const ws = new WebSocket(`wss://${MP_HOST}/room/${MP.code}/ws?role=${MP.role}`);
   MP.ws = ws;
+  ws.onopen = ()=> mpInvia({t:'nome', nome: mpNome() || 'Avversario'});
   ws.onmessage = ev => { try{ mpMsg(JSON.parse(ev.data)); }catch(e){} };
   ws.onclose = ()=>{ if(MP && MP.ws===ws){ setTimeout(()=>{ if(MP) mpSocket(); }, 1800); } };
   ws.onerror  = ()=>{ try{ ws.close(); }catch(e){} };
@@ -999,8 +1004,19 @@ async function eseguiAnimRemota(m){
   }catch(e){}
 }
 
+function nomeAvvRaw(){
+  if(mpAttivo()) return MP.nomeAvversario || "l'avversario";
+  return 'la CPU';
+}
+const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
+
 function mpMsg(m){
   if(!MP) return;
+  if(m.t==='nome'){
+    MP.nomeAvversario = (m.nome||'').trim().slice(0,20) || null;
+    if(ST && ST.d) render();
+    return;
+  }
   if(m.t==='anim' && MP.role==='guest'){
     mpAccoda(()=> eseguiAnimRemota(m));
     return;
@@ -1015,9 +1031,9 @@ function mpMsg(m){
         document.getElementById('overlay').classList.remove('on');
         if(!ST || ST.fine || !ST.d) nuovaPartita();
         else mpInviaStato();
-        setMsg('🌐 Avversario collegato. Si gioca!');
+        setMsg(`🌐 ${MP.nomeAvversario||'Avversario'} è dei nostri. Si gioca!`);
       }
-      if(!m.on) setMsg('🌐 L\'avversario si è disconnesso: appena rientra si riprende.');
+      if(!m.on) setMsg(`🌐 ${MP.nomeAvversario||"L'avversario"} si è disconnesso: appena rientra si riprende.`);
     }
     return;
   }
@@ -1028,7 +1044,7 @@ function mpMsg(m){
       ST = mpSwap(m.state);
       BUSY = false;
       render();
-      setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : '🌐 Attendi la mossa dell\'avversario…');
+      setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : `🌐 Attendi la mossa di ${MP.nomeAvversario||"dell'avversario"}…`);
       if(ST.d && !ST.d.contata && ST.d.mani.tu.length===0 && ST.d.mani.cpu.length===0 && (!ST.d.banco || !ST.d.banco.length)){
         const k = 's'+ST.smazzate;
         if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 700); }
