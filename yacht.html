@@ -71,13 +71,17 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
   background:radial-gradient(circle at 34% 30%, #4a4a4a, #16211a 70%);
   box-shadow:inset 0 1.5px 2px rgba(255,255,255,.35), 0 1px 1px rgba(0,0,0,.3);
 }
-/* le sei facce del cubo: 1 fronte, 6 retro, 3 destra, 4 sinistra, 5 sopra, 2 sotto */
+/* le sei facce del cubo */
 .dado .f1{transform:translateZ(31px)}
 .dado .f6{transform:rotateY(180deg) translateZ(31px)}
 .dado .f3{transform:rotateY(90deg)  translateZ(31px)}
 .dado .f4{transform:rotateY(-90deg) translateZ(31px)}
 .dado .f5{transform:rotateX(90deg)  translateZ(31px)}
 .dado .f2{transform:rotateX(-90deg) translateZ(31px)}
+/* a riposo: solo la faccia frontale, dritta e nitida (niente scorci laterali) */
+.dado .faccia:not(.f1){opacity:0;transition:opacity .18s ease .1s}
+.dado.rotola .faccia:not(.f1){opacity:1;transition:opacity .12s ease}
+.dado .f1{box-shadow:inset 0 0 0 1px rgba(120,100,60,.25), inset 0 -4px 9px rgba(120,100,60,.18), 0 6px 14px rgba(0,0,0,.4)}
 
 .dado .ombra{
   position:absolute;left:50%;top:100%;width:74%;height:12px;
@@ -91,7 +95,7 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
   pointer-events:none;
 }
 .dado.disabilitato{cursor:default}
-.dado.lanciando{transition:transform .78s cubic-bezier(.2,.7,.3,1)}
+.dado.rotola{transition:transform .78s cubic-bezier(.2,.7,.3,1)}
 
 .azioni{display:flex;gap:8px;justify-content:center;padding:6px 8px 2px;flex-wrap:wrap}
 .azioni .info{font-size:12px;color:#cfe8d8;align-self:center}
@@ -571,46 +575,53 @@ async function eseguiTurnoCpu(){
 }
 
 /* ============ RENDER ============ */
-// rotazione base che porta in primo piano la faccia col valore richiesto
-const ORIENTA = {
-  1:[  0,   0],
-  6:[  0, 180],
-  3:[  0, -90],
-  4:[  0,  90],
-  5:[-90,   0],
-  2:[ 90,   0],
-};
+// facce del cubo a partire dal valore frontale: sei valori distinti, opposto sul retro
+// ordine dei div: f1 fronte, f2 sotto, f3 destra, f4 sinistra, f5 sopra, f6 retro
+function facceDado(v){
+  const retro = 7 - v;
+  const lati = [1,2,3,4,5,6].filter(x => x!==v && x!==retro);
+  return [v, lati[0], lati[1], lati[2], lati[3], retro];
+}
 
 function dadoEl(d, i, interattivo){
   const el = document.createElement('div');
   el.className = 'dado' + (d.tenuto?' tenuto':'') + (interattivo?'':' disabilitato');
+  // la faccia frontale porta SEMPRE il valore corrente; le altre servono solo al rotolamento
+  const facce = facceDado(d.v);
   let html = '';
-  for(const f of [1,2,3,4,5,6]){
-    const pips = PIP[f];
-    html += `<div class="faccia f${f}">` + pips.map(on=>`<div class="pip${on?' on':''}"></div>`).join('') + `</div>`;
-  }
+  ['f1','f2','f3','f4','f5','f6'].forEach((cls, k)=>{
+    const pips = PIP[facce[k]] || PIP[1];
+    html += `<div class="faccia ${cls}">` + pips.map(on=>`<div class="pip${on?' on':''}"></div>`).join('') + `</div>`;
+  });
   html += '<div class="ombra"></div>';
   if(d.tenuto) html += '<div class="cubo-hi"></div>';
   el.innerHTML = html;
-  const [rx, ry] = ORIENTA[d.v] || ORIENTA[1];
   const su = d.tenuto ? -9 : 0;
-  el.style.transform = `translateY(${su}px) rotateX(${rx}deg) rotateY(${ry}deg)`;
-  el.dataset.rx = rx; el.dataset.ry = ry;
+  el.style.transform = `translateY(${su}px)`;   // fermo = perfettamente dritto, nessuno scorcio laterale
   if(interattivo) el.onclick = ()=> toggleTenuta(i);
   return el;
 }
 
-// fa rotolare i dadi non tenuti fino ai nuovi valori
+// fa rotolare i dadi non tenuti; atterrano dritti con la faccia frontale sul nuovo valore
 function animaLancio(nuoviValori){
   const els = document.querySelectorAll('#dadi .dado');
   els.forEach((el, i) => {
     if(ST.dadi[i].tenuto) return;
-    const [rx, ry] = ORIENTA[nuoviValori[i]] || ORIENTA[1];
-    // giri interi extra (multipli di 360) così l'atterraggio resta sulla faccia giusta
+    // durante il volo il cubo mostra tutte le facce...
+    el.classList.add('rotola');
+    // ...e la faccia frontale viene già aggiornata al valore che uscirà
+    const v = nuoviValori[i];
+    const facce = facceDado(v);
+    el.querySelectorAll('.faccia').forEach((f, k)=>{
+      const pips = PIP[facce[k]] || PIP[1];
+      f.innerHTML = pips.map(on=>`<div class="pip${on?' on':''}"></div>`).join('');
+    });
+    // giri completi: l'atterraggio è sempre perfettamente frontale
     const giriX = 360 * (2 + ((Math.random()*2)|0));
     const giriY = 360 * (1 + ((Math.random()*3)|0));
-    el.classList.add('lanciando');
-    el.style.transform = `translateY(0px) rotateX(${rx + giriX}deg) rotateY(${ry + giriY}deg)`;
+    el.style.transform = `translateY(0px) rotateX(${giriX}deg) rotateY(${giriY}deg)`;
+    // a fine volo le facce laterali svaniscono: resta il dado nitido e piatto
+    setTimeout(()=>{ el.classList.remove('rotola'); }, 780);
   });
 }
 
