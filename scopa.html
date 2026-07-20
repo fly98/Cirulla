@@ -735,6 +735,7 @@ function cpuDifficile(){
 /* ============ FINE SMAZZATA / PUNTEGGIO ============ */
 function fineSmazzata(){
   const d = ST.d;
+  const giaContata = !!d.contata;   // stato gia' definitivo ricevuto dall'host: non si ricalcola
   d.contata = true;
   if(d.tavolo.length && d.ultimaPresa){
     d.prese[d.ultimaPresa].push(...d.tavolo);
@@ -761,10 +762,12 @@ function fineSmazzata(){
   dai('Settebello', a.sette?'tu':(b.sette?'cpu':null));
   dai('Primiera', a.prim>b.prim ? 'tu' : (b.prim>a.prim?'cpu':null));
 
-  ST.tot.tu += pt.tu;
-  ST.tot.cpu += pt.cpu;
-  ST.fortunaTot += d.fortuna;
-  ST.smazzate++;
+  if(!giaContata){
+    ST.tot.tu += pt.tu;
+    ST.tot.cpu += pt.cpu;
+    ST.fortunaTot += d.fortuna;
+    ST.smazzate++;
+  }
 
   const rigaEvid = (nome, vTu, vCpu) =>
     `<tr class="evid"><td>${nome}</td><td class="n">${vTu||'—'}</td><td class="n">${vCpu||'—'}</td></tr>`;
@@ -808,7 +811,7 @@ function fineSmazzata(){
 
   document.getElementById('pTu').textContent = ST.tot.tu;
   document.getElementById('pCpu').textContent = ST.tot.cpu;
-  if(mpAttivo() && MP.role==='host') mpInviaStato();
+  if(mpAttivo() && MP.role==='host' && !giaContata) mpInviaStato();
   apriModal(html + sfigaHtml + coda);
 }
 
@@ -1317,9 +1320,9 @@ function mpMsg(m){
       BUSY = false;
       render();
       setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : `🌐 Attendi la mossa di ${MP.nomeAvversario||"dell'avversario"}…`);
-      if(ST.d && !ST.d.contata && ST.d.mani.tu.length===0 && ST.d.mani.cpu.length===0 && ST.d.mazzo.length===0){
+      if(ST.d && ST.d.contata){
         const k = 's'+ST.smazzate;
-        if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 700); }
+        if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 300); }
       }
     });
     return;
