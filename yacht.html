@@ -135,6 +135,19 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .scorecard table{width:100%;border-collapse:collapse;table-layout:fixed}
 .scorecard th:first-child, .scorecard td:first-child{width:56%}
 .scorecard th:not(:first-child), .scorecard td:not(:first-child){width:22%}
+/* impilate di default (iPhone), affiancate su schermi larghi */
+.tacc-cols{display:flex;flex-direction:column;gap:0}
+@media (min-width: 700px){
+  .scorecard{max-width:720px;padding:18px 20px 12px 32px}
+  .tacc-cols{flex-direction:row;gap:26px;align-items:flex-start}
+  .tacc-cols > table{flex:1;min-width:0}
+  /* la seconda colonna ha il suo filo di margine, come una pagina divisa a metà */
+  .tacc-cols > table + table{
+    border-left:1.5px dashed rgba(120,105,70,.4);
+    padding-left:22px;
+  }
+  #tabTot{margin-top:6px}
+}
 .scorecard th{
   font-family:'Courier New',monospace; font-size:11.5px; letter-spacing:1.6px;
   color:#7a5f30; text-transform:uppercase; text-align:right; padding:3px 5px 9px;
@@ -276,7 +289,11 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 <div class="msg" id="msg">Tocca <b>Nuova</b> per cominciare.</div>
 
 <div class="zona scorecard">
-  <table id="tabellaCasellario"></table>
+  <div class="tacc-cols">
+    <table id="tabSup"></table>
+    <table id="tabGiu"></table>
+  </div>
+  <table id="tabTot"></table>
 </div>
 
 <div class="footer">
@@ -673,18 +690,27 @@ function renderTabella(){
   };
 
   const tuTot = totaleGiocatore('tu'), cpuTot = totaleGiocatore('cpu');
-  let html = `<tr><th>Casella</th><th>Tu</th><th>${'CPU'}</th></tr>`;
-  html += `<tr class="sezione"><td colspan="3">Sezione superiore</td></tr>`;
+  const intestazione = `<tr><th>Casella</th><th>Tu</th><th>CPU</th></tr>`;
+
+  // colonna 1: sezione superiore + bonus
+  let sup = intestazione;
+  sup += `<tr class="sezione"><td colspan="3">Sezione superiore</td></tr>`;
   for(const c of CATEGORIE.filter(c=>c.sezione==='sup')){
-    html += `<tr><td>${c.nome}</td>${cella('tu',c.key)}${cella('cpu',c.key)}</tr>`;
+    sup += `<tr><td>${c.nome}</td>${cella('tu',c.key)}${cella('cpu',c.key)}</tr>`;
   }
-  html += `<tr class="bonus"><td>Bonus (63+ → +35)</td><td>${tuTot.sup}/63${tuTot.bonus?' ✓+35':''}</td><td>${cpuTot.sup}/63${cpuTot.bonus?' ✓+35':''}</td></tr>`;
-  html += `<tr class="sezione"><td colspan="3">Sezione inferiore</td></tr>`;
+  sup += `<tr class="bonus"><td>Bonus (63+ → +35)</td><td>${tuTot.sup}/63${tuTot.bonus?' ✓+35':''}</td><td>${cpuTot.sup}/63${cpuTot.bonus?' ✓+35':''}</td></tr>`;
+
+  // colonna 2: sezione inferiore
+  let giu = intestazione;
+  giu += `<tr class="sezione"><td colspan="3">Sezione inferiore</td></tr>`;
   for(const c of CATEGORIE.filter(c=>c.sezione==='giu')){
-    html += `<tr><td>${c.nome}</td>${cella('tu',c.key)}${cella('cpu',c.key)}</tr>`;
+    giu += `<tr><td>${c.nome}</td>${cella('tu',c.key)}${cella('cpu',c.key)}</tr>`;
   }
-  html += `<tr class="tot"><td>TOTALE</td><td>${tuTot.tot}</td><td>${cpuTot.tot}</td></tr>`;
-  document.getElementById('tabellaCasellario').innerHTML = html;
+
+  document.getElementById('tabSup').innerHTML = sup;
+  document.getElementById('tabGiu').innerHTML = giu;
+  document.getElementById('tabTot').innerHTML =
+    `<tr class="tot"><td>TOTALE</td><td>${tuTot.tot}</td><td>${cpuTot.tot}</td></tr>`;
 }
 
 function setMsg(html){ document.getElementById('msg').innerHTML = html; }
