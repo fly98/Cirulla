@@ -61,6 +61,23 @@ body::before{
 </style>
 </head>
 <body>
+<script>
+// Pulizia una tantum: azzera storici e partite in sospeso accumulati
+// prima dell'introduzione della soglia di salvataggio.
+(function(){
+  try{
+    if(localStorage.getItem('fly_reset_2026_07') === 'fatto') return;
+    const chiavi = ['cirulla','scopa','tressette','briscola','yacht'];
+    for(const g of chiavi){
+      localStorage.removeItem(g + '_save_v1');
+      localStorage.removeItem(g + '_storico_v1');
+      localStorage.removeItem(g + '_mp_session');
+    }
+    localStorage.setItem('fly_reset_2026_07', 'fatto');
+  }catch(e){}
+})();
+</script>
+
 
 <h1 class="logo">Fly<span class="g">Games</span></h1>
 <div class="sotto">Giochi di carte</div>
