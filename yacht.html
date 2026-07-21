@@ -1632,7 +1632,38 @@ function avvioLocale(){
 
 document.getElementById('btnMenu').onclick = apriMenu;
 document.getElementById('btnRegole').onclick = ()=> apriModal(REGOLE);
-document.getElementById('btnNuova').onclick = ()=>{ nuovaPartita(); };
+
+/* ============ CONFERMA PRIMA DI RICOMINCIARE ============ */
+function confermaNuova(){
+  // basta un dado tirato o una casella segnata per chiedere conferma
+  const inCorso = ST && !ST.fine &&
+    ((caselleRiempite('tu') + caselleRiempite('cpu')) >= 1 || (ST.tiriUsati||0) >= 1);
+  if(!inCorso){
+    avviaNuovaDavvero();
+    return;
+  }
+  const dettaglio = `Punteggio attuale: ${totaleGiocatore('tu').tot}–${totaleGiocatore('cpu').tot} · ${caselleRiempite('tu')+caselleRiempite('cpu')} caselle segnate`;
+  apriModal(`
+    <h2>Ricominciare da capo?</h2>
+    <div style="font-size:15.5px;color:#ddefe4;margin-bottom:6px">
+      C'è una partita in corso: iniziandone una nuova la perdi.
+    </div>
+    <div style="font-size:14px;color:#9fd3b5;margin-bottom:16px">${dettaglio}</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-big" id="btnNuovaAnnulla" style="margin-top:0">↩︎ Continua la partita</button>
+      <button class="btn ghost btn-big" id="btnNuovaOk" style="margin-top:0">Sì, nuova partita</button>
+    </div>
+  `);
+  document.getElementById('btnNuovaAnnulla').onclick = ()=>{
+    document.getElementById('overlay').classList.remove('on');
+  };
+  document.getElementById('btnNuovaOk').onclick = ()=>{
+    document.getElementById('overlay').classList.remove('on');
+    avviaNuovaDavvero();
+  };
+}
+function avviaNuovaDavvero(){ nuovaPartita(); }
+document.getElementById('btnNuova').onclick = confermaNuova;
 document.getElementById('btnTira').onclick = ()=> tiraDadiTu();
 document.getElementById('overlay').onclick = e=>{
   if(e.target.id==='overlay') document.getElementById('overlay').classList.remove('on');
