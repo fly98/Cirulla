@@ -687,6 +687,96 @@ function passaTurno(){
 }
 
 /* ============ IA — tre livelli ============ */
+/* ============ IA DIFFICILE: valutazione per valore atteso ============ */
+
+// Quanto "vale" tenere occupata una casella: serve a non bruciare le pregiate con uno zero.
+// Numeri alti = casella preziosa, da non sacrificare a cuor leggero.
+const PREGIO = {
+  'yacht':50, 'scalag':26, 'scalap':18, 'full':16, 'poker':14, 'tris':6, 'chance':10,
+  '6':12, '5':10, '4':8, '3':6, '2':4, '1':2
+};
+
+// Punteggio "utile" di una combinazione in una casella, con i correttivi strategici:
+// - nella sezione superiore conta il progresso verso il bonus di 63
+// - riempire una casella pregiata con zero è un danno, non un pareggio
+function valoreCasella(dadiVal, key, punteggi, sommaSup){
+  const p = punteggio(dadiVal, key);
+  let v = p;
+
+  if(['1','2','3','4','5','6'].includes(key)){
+    const face = +key;
+    const quanti = p / face;                    // quanti dadi di quel valore
+    // il bonus richiede una media di 3 dadi per faccia: premio/penalizzo lo scostamento
+    if(sommaSup < 63){
+      v += (quanti - 3) * face * 1.5;
+      if(quanti >= 3) v += 4;                   // mantiene vivo il bonus
+    }
+  }
+
+  if(p === 0) v -= PREGIO[key] * 0.9;          // sprecare una casella pregiata costa
+  if(key === 'chance' && p > 0) v -= 4;         // la chance è preziosa: non svenderla presto
+  return v;
+}
+
+// Miglior valore ottenibile con questi dadi tra le caselle ancora libere
+function migliorValore(dadiVal, vuote, punteggi, sommaSup){
+  let best = -Infinity;
+  for(const k of vuote){
+    const v = valoreCasella(dadiVal, k, punteggi, sommaSup);
+    if(v > best) best = v;
+  }
+  return best === -Infinity ? 0 : best;
+}
+
+// Valore atteso di una tenuta: simula i rilanci rimanenti e media il risultato
+function valoreAtteso(dadiVal, tenuti, tiriRimasti, vuote, punteggi, sommaSup, campioni){
+  if(tiriRimasti <= 0) return migliorValore(dadiVal, vuote, punteggi, sommaSup);
+  let somma = 0;
+  const n = campioni;
+  for(let s = 0; s < n; s++){
+    const prova = dadiVal.slice();
+    for(let t = 0; t < tiriRimasti; t++){
+      for(let i = 0; i < 5; i++){
+        if(!tenuti[i]) prova[i] = 1 + ((Math.random()*6)|0);
+      }
+    }
+    somma += migliorValore(prova, vuote, punteggi, sommaSup);
+  }
+  return somma / n;
+}
+
+// Sceglie quali dadi tenere provando TUTTE le 32 combinazioni possibili
+function decidiTenuteDifficile(dadiVal, vuote, punteggi, tiriRimasti){
+  let sommaSup = 0;
+  for(const k of ['1','2','3','4','5','6']) sommaSup += punteggi[k] || 0;
+
+  const campioni = tiriRimasti >= 2 ? 90 : 150;   // più preciso quando manca un solo tiro
+  let migliore = null, valMigliore = -Infinity;
+
+  for(let mask = 0; mask < 32; mask++){
+    const tenuti = [0,1,2,3,4].map(i => !!(mask & (1<<i)));
+    const v = valoreAtteso(dadiVal, tenuti, tiriRimasti, vuote, punteggi, sommaSup, campioni);
+    if(v > valMigliore){ valMigliore = v; migliore = tenuti; }
+  }
+  return migliore || [false,false,false,false,false];
+}
+
+// Sceglie la casella dove segnare, valutando anche il costo di bruciarne una pregiata
+function scegliCasellaDifficile(dadiVal, punteggi){
+  const vuote = CATEGORIE.filter(c => punteggi[c.key] == null).map(c => c.key);
+  let sommaSup = 0;
+  for(const k of ['1','2','3','4','5','6']) sommaSup += punteggi[k] || 0;
+
+  let best = null, valBest = -Infinity;
+  for(const k of vuote){
+    let v = valoreCasella(dadiVal, k, punteggi, sommaSup);
+    // se resta poco da giocare, conta solo il punteggio secco
+    if(vuote.length <= 2) v = punteggio(dadiVal, k);
+    if(v > valBest){ valBest = v; best = k; }
+  }
+  return best || vuote[0];
+}
+
 function decidiTenute(dadiVal, vuoteKeys, livello){
   const conta={}; dadiVal.forEach(v=>conta[v]=(conta[v]||0)+1);
   const set = new Set(dadiVal);
@@ -699,6 +789,8 @@ function decidiTenute(dadiVal, vuoteKeys, livello){
   }
 
   if(livello==='difficile'){
+    // la scelta passa dal calcolo del valore atteso (vedi decidiTenuteDifficile);
+    // qui restano solo i casi banali gestiti prima della chiamata
     for(const seq of [[1,2,3,4,5],[2,3,4,5,6]]){
       if(vuoteKeys.includes('scalag') && seq.every(v=>set.has(v))){
         return dadiVal.map(v=>seq.includes(v));
@@ -741,6 +833,7 @@ function decidiTenute(dadiVal, vuoteKeys, livello){
 
 function pickCategoriaCPU(dadiVal, punteggiCpu, livello){
   const vuote = CATEGORIE.filter(c=>punteggiCpu[c.key]==null).map(c=>c.key);
+  if(livello==='difficile') return scegliCasellaDifficile(dadiVal, punteggiCpu);
   if(livello==='facile' && Math.random()<0.5){
     return vuote[(Math.random()*vuote.length)|0];
   }
@@ -783,7 +876,9 @@ async function eseguiTurnoCpu(){
 
     if(ST.tiriRimasti>0){
       const vuoteKeys = CATEGORIE.filter(c=>ST.punteggi.cpu[c.key]==null).map(c=>c.key);
-      const tenute = decidiTenute(ST.dadi.map(d=>d.v), vuoteKeys, ST.livello);
+      const tenute = (ST.livello==='difficile')
+        ? decidiTenuteDifficile(ST.dadi.map(d=>d.v), vuoteKeys, ST.punteggi.cpu, ST.tiriRimasti)
+        : decidiTenute(ST.dadi.map(d=>d.v), vuoteKeys, ST.livello);
       ST.dadi.forEach((d,i)=>{ d.tenuto = tenute[i]; });
       render();
       await sleep(550);
