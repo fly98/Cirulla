@@ -1590,6 +1590,7 @@ function avvioLocale(){
       nuovaPartita();
     };
   } else {
+    document.getElementById('overlay').classList.remove('on');   // chiude la scelta online/locale
     nuovaPartita();
   }
 }
