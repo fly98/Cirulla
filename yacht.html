@@ -485,12 +485,49 @@ function punteggio(dadiVal, key){
 
 function caselleRiempite(p){ return CATEGORIE.filter(c=>ST.punteggi[p][c.key]!=null).length; }
 
+// ===== SECONDO YACHT: bonus da 100 e regola del jolly (regole ufficiali) =====
+function cinqueUguali(dadiVal){
+  return dadiVal.every(v => v === dadiVal[0]);
+}
+
+// Il jolly si attiva quando: cinque dadi uguali, casella Yacht già usata
+// (con 50 o con 0) e casella superiore corrispondente già occupata.
+function jollyAttivo(dadiVal, punteggi){
+  if(!cinqueUguali(dadiVal)) return false;
+  if(punteggi['yacht'] == null) return false;
+  const faccia = String(dadiVal[0]);
+  return punteggi[faccia] != null;
+}
+
+// Punteggio effettivo tenendo conto del jolly: Full, Scala piccola e Scala grande
+// valgono il punteggio pieno anche se i dadi non formano quella combinazione.
+function punteggioEff(dadiVal, key, punteggi){
+  if(jollyAttivo(dadiVal, punteggi)){
+    if(key === 'full')   return 25;
+    if(key === 'scalap') return 30;
+    if(key === 'scalag') return 40;
+  }
+  return punteggio(dadiVal, key);
+}
+
+// Caselle dove è consentito segnare: con cinque uguali le regole impongono
+// la casella superiore corrispondente, se ancora libera.
+function casellePermesse(dadiVal, punteggi){
+  const vuote = CATEGORIE.filter(c => punteggi[c.key] == null).map(c => c.key);
+  if(!cinqueUguali(dadiVal)) return vuote;
+  if(punteggi['yacht'] == null) return vuote;          // lo Yacht è ancora libero: si segna lì o altrove
+  const faccia = String(dadiVal[0]);
+  if(vuote.includes(faccia)) return [faccia];          // obbligo: casella superiore corrispondente
+  return vuote;                                        // altrimenti libertà di scelta (jolly)
+}
+
 function totaleGiocatore(p){
   const pt = ST.punteggi[p];
   let sup=0; for(const c of ['1','2','3','4','5','6']) sup += pt[c]||0;
   const bonus = sup>=63 ? 35 : 0;
   let giu=0; for(const c of ['tris','poker','full','scalap','scalag','yacht','chance']) giu += pt[c]||0;
-  return {sup, bonus, giu, tot: sup+bonus+giu};
+  const extra = (ST.yachtBonus && ST.yachtBonus[p]) ? ST.yachtBonus[p]*100 : 0;
+  return {sup, bonus, giu, extra, tot: sup+bonus+giu+extra};
 }
 
 /* ============ PARTITA ============ */
@@ -511,6 +548,7 @@ function nuovaPartita(){
     tiriRimasti: 3,
     tiriUsati: 0,
     livello: liv,
+    yachtBonus: {tu:0, cpu:0},
     fine: false,
     fortunaTot: 0,
     fortunaLog: []
@@ -608,6 +646,11 @@ function toggleTenuta(i){
 function confermaCategoria(key){
   if(!ST || ST.fine || ST.turno!=='tu' || ST.tiriUsati===0 || BUSY) return;
   if(ST.punteggi.tu[key]!=null) return;
+  const permesse = casellePermesse(ST.dadi.map(d=>d.v), ST.punteggi.tu);
+  if(!permesse.includes(key)){
+    setMsg(`Con cinque dadi uguali devi segnare in <b>${NOME[permesse[0]]}</b> (regola del jolly).`);
+    return;
+  }
   if(mpAttivo() && MP.role==='guest'){
     mpInvia({t:'segna', key});
     setMsg('🌐 Punteggio inviato…');
@@ -617,23 +660,31 @@ function confermaCategoria(key){
 }
 
 function registraPunteggio(chi, key){
-  const val = punteggio(ST.dadi.map(d=>d.v), key);
-  ST.punteggi[chi][key] = val;
   const valori = ST.dadi.map(d=>d.v);
-  const isYacht = (key==='yacht' && val>0);
+  // bonus da 100: cinque uguali quando la casella Yacht vale già 50
+  let bonusAssegnato = false;
+  if(cinqueUguali(valori) && ST.punteggi[chi]['yacht'] === 50){
+    if(!ST.yachtBonus) ST.yachtBonus = {tu:0, cpu:0};
+    ST.yachtBonus[chi]++;
+    bonusAssegnato = true;
+  }
+  const val = punteggioEff(valori, key, ST.punteggi[chi]);
+  ST.punteggi[chi][key] = val;
+  const isYacht = (key==='yacht' && val>0) || bonusAssegnato;
 
   if(val>0 && chi==='tu' && key==='scalag'){
     mostraBussata('Scala grande! 🎉', `Segni ${val} punti in ${NOME[key]}`);
   }
   render();
-  setMsg(`${chi==='tu'?'Segni':cap(nomeAvvRaw())+' segna'} <b>${val}</b> punti in <b>${NOME[key]}</b>.`);
+  setMsg(`${chi==='tu'?'Segni':cap(nomeAvvRaw())+' segna'} <b>${val}</b> punti in <b>${NOME[key]}</b>.`
+    + (bonusAssegnato ? ' <span class="ok">+100 di bonus Yacht!</span>' : ''));
   salvaPartita();
 
   if(isYacht){
-    festaYacht(chi==='tu', valori);
+    festaYacht(chi==='tu', valori, bonusAssegnato);
     if(mpAttivo() && MP.role==='host'){
       // sul telefono dell'avversario la prospettiva è ribaltata
-      mpInvia({t:'anim', k:'festa', mio:(chi==='cpu'), valori});
+      mpInvia({t:'anim', k:'festa', mio:(chi==='cpu'), valori, conBonus:bonusAssegnato});
     }
   }
 
@@ -661,7 +712,7 @@ function registraPunteggio(chi, key){
 /* ====== FESTA YACHT ====== */
 const FACCE_EMOJI = {1:'⚀',2:'⚁',3:'⚂',4:'⚃',5:'⚄',6:'⚅'};
 
-function festaYacht(mio, valori){
+function festaYacht(mio, valori, conBonus){
   // 1) coriandoli che piovono
   const colori = ['#e8c266','#ffd966','#e05a5a','#5ac8e0','#7ee06a','#e07ad6','#fff2c4','#ff9f43'];
   const n = 90;
@@ -684,8 +735,10 @@ function festaYacht(mio, valori){
   const b = document.getElementById('festaBanner');
   const dadiEmoji = (valori||[]).map(v=>FACCE_EMOJI[v]||'').join('');
   b.innerHTML = `
-    <div class="fb-tit">YACHT!</div>
-    <div class="fb-sub">${mio ? '50 punti — cinque dadi uguali!' : `${cap(nomeAvvRaw())} fa Yacht: 50 punti`}</div>
+    <div class="fb-tit">${conBonus ? 'YACHT BIS!' : 'YACHT!'}</div>
+    <div class="fb-sub">${conBonus
+      ? (mio ? '+100 punti di bonus!' : `${cap(nomeAvvRaw())} fa un altro Yacht: +100`)
+      : (mio ? '50 punti — cinque dadi uguali!' : `${cap(nomeAvvRaw())} fa Yacht: 50 punti`)}</div>
     <div class="fb-dadi">${dadiEmoji}</div>`;
   b.classList.remove('on');
   void b.offsetWidth;   // riavvia l'animazione anche se ripetuta
@@ -737,7 +790,7 @@ const PREGIO = {
 // - nella sezione superiore conta il progresso verso il bonus di 63
 // - riempire una casella pregiata con zero è un danno, non un pareggio
 function valoreCasella(dadiVal, key, punteggi, sommaSup){
-  const p = punteggio(dadiVal, key);
+  const p = punteggioEff(dadiVal, key, punteggi);
   let v = p;
 
   if(['1','2','3','4','5','6'].includes(key)){
@@ -772,11 +825,16 @@ function valoreCasella(dadiVal, key, punteggi, sommaSup){
 
 // Miglior valore ottenibile con questi dadi tra le caselle ancora libere
 function migliorValore(dadiVal, vuote, punteggi, sommaSup){
+  // con cinque uguali la regola può imporre una casella precisa
+  const permesse = casellePermesse(dadiVal, punteggi).filter(k => vuote.includes(k));
+  const scelte = permesse.length ? permesse : vuote;
   let best = -Infinity;
-  for(const k of vuote){
+  for(const k of scelte){
     const v = valoreCasella(dadiVal, k, punteggi, sommaSup);
     if(v > best) best = v;
   }
+  // cinque uguali con la casella Yacht già a 50: valgono 100 punti di bonus
+  if(cinqueUguali(dadiVal) && punteggi['yacht'] === 50) best += 100;
   return best === -Infinity ? 0 : best;
 }
 
@@ -815,7 +873,7 @@ function decidiTenuteDifficile(dadiVal, vuote, punteggi, tiriRimasti){
 
 // Sceglie la casella dove segnare, valutando anche il costo di bruciarne una pregiata
 function scegliCasellaDifficile(dadiVal, punteggi){
-  const vuote = CATEGORIE.filter(c => punteggi[c.key] == null).map(c => c.key);
+  const vuote = casellePermesse(dadiVal, punteggi);
   let sommaSup = 0;
   for(const k of ['1','2','3','4','5','6']) sommaSup += punteggi[k] || 0;
 
@@ -823,7 +881,7 @@ function scegliCasellaDifficile(dadiVal, punteggi){
   for(const k of vuote){
     let v = valoreCasella(dadiVal, k, punteggi, sommaSup);
     // se resta poco da giocare, conta solo il punteggio secco
-    if(vuote.length <= 2) v = punteggio(dadiVal, k);
+    if(vuote.length <= 2) v = punteggioEff(dadiVal, k, punteggi);
     if(v > valBest){ valBest = v; best = k; }
   }
   return best || vuote[0];
@@ -884,12 +942,12 @@ function decidiTenute(dadiVal, vuoteKeys, livello){
 }
 
 function pickCategoriaCPU(dadiVal, punteggiCpu, livello){
-  const vuote = CATEGORIE.filter(c=>punteggiCpu[c.key]==null).map(c=>c.key);
+  const vuote = casellePermesse(dadiVal, punteggiCpu);
   if(livello==='difficile') return scegliCasellaDifficile(dadiVal, punteggiCpu);
   if(livello==='facile' && Math.random()<0.5){
     return vuote[(Math.random()*vuote.length)|0];
   }
-  const scelte = vuote.map(k=>({key:k, val:punteggio(dadiVal,k)}));
+  const scelte = vuote.map(k=>({key:k, val:punteggioEff(dadiVal,k,punteggiCpu)}));
   scelte.sort((a,b)=>b.val-a.val);
   if(scelte[0].val>0){
     return scelte[0].key;
@@ -1037,7 +1095,11 @@ function renderTabella(){
       return `<td><span class="segnato" style="display:inline-block;transform:rotate(${rot}deg)">${val}</span></td>`;
     }
     if(p==='tu' && puoiSegnare){
-      const anteprima = punteggio(dv, key);
+      const permesse = casellePermesse(dv, ST.punteggi.tu);
+      const anteprima = punteggioEff(dv, key, ST.punteggi.tu);
+      if(!permesse.includes(key)){
+        return `<td><span class="cella-vuota">${anteprima}</span></td>`;   // vietata dalla regola del jolly
+      }
       return `<td><span class="cella-tap" onclick="confermaCategoria('${key}')">${anteprima}</span></td>`;
     }
     return `<td class="cella-vuota">—</td>`;
@@ -1060,6 +1122,10 @@ function renderTabella(){
   giu += `<tr class="sezione"><td colspan="3">Sezione inferiore</td></tr>`;
   for(const c of CATEGORIE.filter(c=>c.sezione==='giu')){
     giu += `<tr><td>${c.nome}</td>${cella('tu',c.key)}${cella('cpu',c.key)}</tr>`;
+  }
+  const yb = ST.yachtBonus || {tu:0, cpu:0};
+  if(yb.tu || yb.cpu){
+    giu += `<tr class="bonus"><td>Bonus Yacht (×100)</td><td>${yb.tu?('+'+yb.tu*100):'—'}</td><td>${yb.cpu?('+'+yb.cpu*100):'—'}</td></tr>`;
   }
 
   document.getElementById('tabSup').innerHTML = sup;
@@ -1117,6 +1183,9 @@ function fineGioco(){
   for(const c of CATEGORIE) html += riga(c.nome, c.key);
   html += `<tr class="evid"><td>Sezione superiore</td><td class="n">${tuTot.sup}</td><td class="n">${cpuTot.sup}</td></tr>`;
   html += `<tr class="evid"><td>Bonus 63+</td><td class="n">${tuTot.bonus||'—'}</td><td class="n">${cpuTot.bonus||'—'}</td></tr>`;
+  if(tuTot.extra || cpuTot.extra){
+    html += `<tr class="evid"><td>🎲 Bonus Yacht extra</td><td class="n">${tuTot.extra||'—'}</td><td class="n">${cpuTot.extra||'—'}</td></tr>`;
+  }
   html += `<tr class="tot big"><td>TOTALE</td><td class="n">${tuTot.tot}</td><td class="n">${cpuTot.tot}</td></tr>
     </table>`;
 
@@ -1327,6 +1396,7 @@ function mpSwap(st){
   const s = JSON.parse(JSON.stringify(st));
   const sw = o => { if(!o) return; const t=o.tu; o.tu=o.cpu; o.cpu=t; };
   sw(s.punteggi);
+  sw(s.yachtBonus);
   s.turno = s.turno==='tu' ? 'cpu' : 'tu';
   if(s.fortunaLog) s.fortunaLog.forEach(e=>{ e.delta = -e.delta; });
   s.fortunaTot = -(s.fortunaTot||0);
@@ -1358,7 +1428,7 @@ async function eseguiAnimRemota(m){
       await sleep(1400);
     }
     else if(m.k==='festa'){
-      festaYacht(!!m.mio, m.valori||[]);
+      festaYacht(!!m.mio, m.valori||[], !!m.conBonus);
       await sleep(2600);
     }
   }catch(e){}
@@ -1582,6 +1652,7 @@ const REGOLE = `
 <li><b>Full</b>: un tris + una coppia diversa → <b>25</b> punti fissi.</li>
 <li><b>Scala piccola</b>: 4 valori consecutivi → <b>30</b>. <b>Scala grande</b>: 5 consecutivi → <b>40</b>.</li>
 <li><b>YACHT</b>: 5 dadi uguali → <b>50</b> punti, il colpo più raro.</li>
+<li><b>Secondo Yacht (regole ufficiali)</b>: se hai già <b>50</b> nella casella Yacht e ne fai un altro, prendi <b>+100 punti di bonus</b> — e vale per ogni Yacht successivo. Poi devi comunque segnare il tiro: nella casella della sezione superiore corrispondente se è libera (cinque quattro → casella Quattro), altrimenti in una qualsiasi casella libera della sezione inferiore, dove lo Yacht fa da <b>jolly</b> e vale il punteggio pieno (Full 25, Scala piccola 30, Scala grande 40) anche senza averne la combinazione. Se hai segnato <b>zero</b> nella casella Yacht, niente bonus ma le stesse regole per dove segnare.</li>
 <li><b>Chance</b>: somma dei 5 dadi, qualsiasi combinazione — la casella "salvagente" per un tiro andato male.</li>
 <li>Se una casella non può essere riempita con niente di buono, si può segnarla comunque a <b>0</b> per liberarla.</li>
 <li>Vince chi totalizza più punti a fine partita (13 caselle + eventuale bonus).</li>
