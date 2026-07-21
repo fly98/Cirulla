@@ -722,11 +722,22 @@ function valoreCasella(dadiVal, key, punteggi, sommaSup){
 
   if(['1','2','3','4','5','6'].includes(key)){
     const face = +key;
-    const quanti = p / face;                    // quanti dadi di quel valore
-    // il bonus richiede una media di 3 dadi per faccia: premio/penalizzo lo scostamento
-    if(sommaSup < 63){
-      v += (quanti - 3) * face * 1.5;
-      if(quanti >= 3) v += 4;                   // mantiene vivo il bonus
+    // Il bonus da 35 punti arriva a quota 63, cioè in media 3 dadi per faccia.
+    // Ogni punto sotto quota costa una frazione del bonus, non un valore fisso:
+    // così non si rinuncia mai a 12 punti veri per 3.
+    let credito = 0;                            // scarto accumulato finora rispetto alla quota
+    for(const k of ['1','2','3','4','5','6']){
+      if(punteggi[k] != null) credito += punteggi[k] - 3 * (+k);
+    }
+    const supRimaste = ['1','2','3','4','5','6'].filter(k => punteggi[k] == null).length;
+    const scarto = p - 3 * face;                // scarto di QUESTA giocata
+    const creditoDopo = credito + scarto;
+    // il bonus è ancora realistico? serve poter recuperare con le caselle che restano
+    const recuperabile = supRimaste * 4;
+    const bonusVivo = sommaSup < 63 && creditoDopo > -recuperabile;
+    if(bonusVivo){
+      v += scarto * 1.2;                        // il bonus da 35 punti merita di essere inseguito
+      if(p >= 3 * face) v += 6;                 // premio per restare in linea con la quota
     }
   }
 
