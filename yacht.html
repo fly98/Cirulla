@@ -312,24 +312,37 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .dado .ombra{height:9px}
   .azioni .info{font-size:10.5px}
   .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:5px 0 3px}
-  /* telefono: taccuino a due colonne, compatto, senza scorrimento */
-  .scorecard{padding:10px 7px 6px 16px;margin:6px auto 8px;max-width:100%;transform:rotate(-.4deg)}
-  .scorecard::before{left:9px;top:10px;bottom:10px}
-  .scorecard::after{font-size:15px;top:-10px}
-  .tacc-cols{flex-direction:row;gap:10px;align-items:flex-start}
+  /* telefono: due colonne, dimensionate per riempire lo schermo senza scorrere */
+  .scorecard{padding:14px 9px 10px 20px;margin:8px auto 10px;max-width:100%;transform:rotate(-.4deg)}
+  .scorecard::before{left:11px;top:12px;bottom:12px}
+  .scorecard::after{font-size:18px;top:-12px}
+  .tacc-cols{flex-direction:row;gap:12px;align-items:flex-start}
   .tacc-cols > table{flex:1;min-width:0}
-  .tacc-cols > table + table{border-left:1.5px dashed rgba(120,105,70,.4);padding-left:9px}
+  .tacc-cols > table + table{border-left:1.5px dashed rgba(120,105,70,.4);padding-left:11px}
   /* nome più stretto: lo spazio vuoto tra nome e punteggio era sprecato */
   .scorecard th:first-child, .scorecard td:first-child{width:50%}
   .scorecard th:not(:first-child), .scorecard td:not(:first-child){width:25%}
-  .scorecard th{font-size:8px;letter-spacing:.6px;padding:1px 2px 5px}
-  .scorecard td{font-size:19px;padding:2px 2px}
-  .scorecard td:first-child{font-size:12px}
-  .scorecard tr.sezione td{font-size:7.5px;letter-spacing:.8px;padding-top:6px}
-  .scorecard tr.bonus td{font-size:9.5px}
-  .scorecard tr.tot td{font-size:23px;padding:6px 3px 5px}
-  .cella-vuota{font-size:17px!important}
-  .cella-tap{font-size:19px;padding:0 4px;border-radius:5px}
+  .scorecard th{font-size:9.5px;letter-spacing:.7px;padding:2px 2px 7px}
+  .scorecard td{font-size:27px;padding:6px 2px}
+  .scorecard td:first-child{font-size:17px}
+  .scorecard tr.sezione td{font-size:9px;letter-spacing:1px;padding-top:10px}
+  .scorecard tr.bonus td{font-size:12.5px}
+  .scorecard tr.tot td{font-size:33px;padding:10px 3px 8px}
+  .cella-vuota{font-size:24px!important}
+  .cella-tap{font-size:27px;padding:1px 6px;border-radius:6px}
+}
+
+/* telefoni con schermo basso (SE, mini): stessa struttura, misure ridotte per non scorrere */
+@media (max-width: 540px) and (max-height: 780px){
+  .scorecard{padding:10px 7px 7px 16px}
+  .scorecard th{font-size:8px;padding:1px 2px 5px}
+  .scorecard td{font-size:21px;padding:3px 2px}
+  .scorecard td:first-child{font-size:13.5px}
+  .scorecard tr.sezione td{font-size:8px;padding-top:7px}
+  .scorecard tr.bonus td{font-size:10.5px}
+  .scorecard tr.tot td{font-size:26px;padding:7px 3px 6px}
+  .cella-vuota{font-size:19px!important}
+  .cella-tap{font-size:21px;padding:0 5px}
   .avviso-cpu{top:calc(100% - 46px);padding:9px 14px;border-radius:11px}
   .avviso-cpu .av-tit{font-size:13.5px}
   .avviso-cpu .av-det{font-size:10.5px}
