@@ -347,6 +347,23 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 </style>
 </head>
 <body>
+<script>
+// Pulizia una tantum: azzera storici e partite in sospeso accumulati
+// prima dell'introduzione della soglia di salvataggio.
+(function(){
+  try{
+    if(localStorage.getItem('fly_reset_2026_07') === 'fatto') return;
+    const chiavi = ['cirulla','scopa','tressette','briscola','yacht'];
+    for(const g of chiavi){
+      localStorage.removeItem(g + '_save_v1');
+      localStorage.removeItem(g + '_storico_v1');
+      localStorage.removeItem(g + '_mp_session');
+    }
+    localStorage.setItem('fly_reset_2026_07', 'fatto');
+  }catch(e){}
+})();
+</script>
+
 
 <header>
   <h1>YACHT<small>5 dadi · 13 caselle</small></h1>
@@ -1418,10 +1435,17 @@ document.addEventListener('visibilitychange', ()=>{
 const SAVE_KEY = 'yacht_save_v1';
 const HIST_KEY = 'yacht_storico_v1';
 
+// una partita si salva solo quando è davvero cominciata: prima di 3 caselle segnate
+// non ha senso proporne la ripresa
+function partitaAvviata(){
+  if(!ST || !ST.punteggi) return false;
+  return (caselleRiempite('tu') + caselleRiempite('cpu')) >= 3;
+}
+
 function salvaPartita(){
   try{
     if(mpAttivo()) return;
-    if(!ST || ST.fine){ localStorage.removeItem(SAVE_KEY); return; }
+    if(!ST || ST.fine || !partitaAvviata()){ localStorage.removeItem(SAVE_KEY); return; }
     localStorage.setItem(SAVE_KEY, JSON.stringify(ST));
   }catch(e){}
 }
