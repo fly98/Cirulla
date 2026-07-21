@@ -736,7 +736,11 @@ function valoreCasella(dadiVal, key, punteggi, sommaSup){
     const recuperabile = supRimaste * 4;
     const bonusVivo = sommaSup < 63 && creditoDopo > -recuperabile;
     if(bonusVivo){
-      v += scarto * 1.2;                        // il bonus da 35 punti merita di essere inseguito
+      // Andare SOTTO quota costa (allontana il bonus da 35 punti).
+      // Andare SOPRA quota vale poco: quei punti sono già contati nel punteggio,
+      // e il credito extra serve solo a coprire eventuali deficit futuri.
+      if(scarto < 0) v += scarto * 1.2;
+      else           v += Math.min(scarto, 6) * 0.25;
       if(p >= 3 * face) v += 6;                 // premio per restare in linea con la quota
     }
   }
