@@ -1151,12 +1151,27 @@ function mpMsg(m){
     return;
   }
   if(m.t==='gioca' && MP.role==='host'){
-    if(ST && ST.d && ST.d.turno==='cpu'){
-      const carta = ST.d.mani.cpu.find(c=>c.id===m.cartaId);
-      if(carta) gioca('cpu', carta);
-    }
+    mpMossaGuest(m, 0);
     return;
   }
+}
+
+function mpApplicaMossaGuest(m){
+    const carta = ST.d.mani.cpu.find(c=>c.id===m.cartaId);
+    if(carta) gioca('cpu', carta);
+}
+
+// L'host puo' essere impegnato in un'animazione (presa, pescata, accuso) proprio
+// mentre arriva la mossa del guest: senza coda la mossa veniva persa in silenzio
+// e il guest doveva ritoccare la carta. Qui si ritenta per ~2,5 secondi.
+function mpMossaGuest(m, tent){
+  if(!MP || MP.role!=='host' || !ST || !ST.d || ST.fine) return;
+  if(ST.d.turno!=='cpu') return;          // turno gia' passato: mossa non piu' valida
+  if(BUSY){
+    if((tent||0) < 20) setTimeout(()=> mpMossaGuest(m, (tent||0)+1), 120);
+    return;
+  }
+  mpApplicaMossaGuest(m);
 }
 
 function mpEsci(){
