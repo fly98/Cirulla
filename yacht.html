@@ -537,7 +537,9 @@ function nuovaPartita(){
   if(mpAttivo() && MP.role==='guest'){ setMsg('🌐 Attendi: l\'avversario avvia la partita…'); return; }
   let liv = 'medio';
   try{ liv = localStorage.getItem('yacht_livello') || 'medio'; }catch(e){}
-  ULTIMO_INIZIO = (ULTIMO_INIZIO==='tu') ? 'cpu' : 'tu';
+  // offline: si alterna. online: sorteggio, cosi' non apre sempre lo stesso
+  ULTIMO_INIZIO = mpAttivo() ? (Math.random()<0.5 ? 'tu' : 'cpu')
+                            : ((ULTIMO_INIZIO==='tu') ? 'cpu' : 'tu');
   ST = {
     punteggi: {
       tu:  Object.fromEntries(CATEGORIE.map(c=>[c.key,null])),
@@ -550,6 +552,7 @@ function nuovaPartita(){
     livello: liv,
     yachtBonus: {tu:0, cpu:0},
     fine: false,
+    chiusuraTurno: false,
     fortunaTot: 0,
     fortunaLog: []
   };
@@ -557,7 +560,9 @@ function nuovaPartita(){
   document.getElementById('pTu').textContent = 0;
   document.getElementById('pCpu').textContent = 0;
   render();
-  setMsg(ST.turno==='tu' ? 'Tocca a te: tira i dadi!' : `Apre ${nomeAvvRaw()}…`);
+  setMsg(mpAttivo()
+    ? (ST.turno==='tu' ? '🎲 Sorteggio: apri tu! Tira i dadi.' : `🎲 Sorteggio: apre ${nomeAvvRaw()}…`)
+    : (ST.turno==='tu' ? 'Tocca a te: tira i dadi!' : `Apre ${nomeAvvRaw()}…`));
   salvaPartita();
   if(ST.turno==='cpu') setTimeout(eseguiTurnoCpu, 800);
 }
@@ -585,7 +590,7 @@ function registraFortunaTiro(chi, dadiVal, primoTiro){
 
 /* ============ TURNO GIOCATORE ============ */
 async function tiraDadiTu(){
-  if(!ST || ST.fine || ST.turno!=='tu' || ST.tiriRimasti<=0 || BUSY) return;
+  if(!ST || ST.fine || ST.chiusuraTurno || ST.turno!=='tu' || ST.tiriRimasti<=0 || BUSY) return;
   if(mpAttivo() && MP.role==='guest'){
     mpInvia({t:'tira'});
     setMsg('🌐 Lancio inviato…');
@@ -633,7 +638,7 @@ async function tiraDadiRemoto(){
 }
 
 function toggleTenuta(i){
-  if(!ST || ST.fine || ST.turno!=='tu' || ST.tiriUsati===0 || BUSY) return;
+  if(!ST || ST.fine || ST.chiusuraTurno || ST.turno!=='tu' || ST.tiriUsati===0 || BUSY) return;
   ST.dadi[i].tenuto = !ST.dadi[i].tenuto;
   render();
   if(mpAttivo()){
@@ -644,7 +649,7 @@ function toggleTenuta(i){
 }
 
 function confermaCategoria(key){
-  if(!ST || ST.fine || ST.turno!=='tu' || ST.tiriUsati===0 || BUSY) return;
+  if(!ST || ST.fine || ST.chiusuraTurno || ST.turno!=='tu' || ST.tiriUsati===0 || BUSY) return;
   if(ST.punteggi.tu[key]!=null) return;
   const permesse = casellePermesse(ST.dadi.map(d=>d.v), ST.punteggi.tu);
   if(!permesse.includes(key)){
@@ -652,6 +657,8 @@ function confermaCategoria(key){
     return;
   }
   if(mpAttivo() && MP.role==='guest'){
+    ST.chiusuraTurno = true;   // chiudo subito la mano: niente seconda casella per errore
+    render();
     mpInvia({t:'segna', key});
     setMsg('🌐 Punteggio inviato…');
     return;
@@ -670,6 +677,8 @@ function registraPunteggio(chi, key){
   }
   const val = punteggioEff(valori, key, ST.punteggi[chi]);
   ST.punteggi[chi][key] = val;
+  ST.chiusuraTurno = true;   // turno chiuso: si riapre solo in passaTurno
+  BUSY = true;
   const isYacht = (key==='yacht' && val>0) || bonusAssegnato;
 
   if(val>0 && chi==='tu' && key==='scalag'){
@@ -762,11 +771,18 @@ function mostraAvvisoCpu(titolo, dettaglio){
 }
 
 function passaTurno(){
+  ST.chiusuraTurno = false;
+  BUSY = false;
   if(caselleRiempite('tu')===13 && caselleRiempite('cpu')===13){
     setTimeout(fineGioco, 400);
     return;
   }
-  ST.turno = (ST.turno==='tu') ? 'cpu' : 'tu';
+  let nuovo = (ST.turno==='tu') ? 'cpu' : 'tu';
+  // rete di sicurezza: se quel giocatore ha gia' riempito tutto, salta il turno
+  // invece di consegnargli una plancia senza caselle (era li' che si bloccava)
+  if(caselleRiempite(nuovo)===13) nuovo = (nuovo==='tu') ? 'cpu' : 'tu';
+  if(caselleRiempite(nuovo)===13){ setTimeout(fineGioco, 400); return; }
+  ST.turno = nuovo;
   ST.dadi = Array.from({length:5}, ()=>({v:1, tenuto:false}));
   ST.tiriRimasti = 3;
   ST.tiriUsati = 0;
@@ -1360,7 +1376,8 @@ function mpSessione(){
 
 function mpConnetti(code, role){
   MP = {role, code, ws:null, avversarioOn:false, fineViste:{}};
-  ST = null;   // la partita online riparte da zero nella stanza (o dal resync della stanza)
+  // se questo dispositivo aveva la partita in corso (tab uccisa da Android/iOS) la recupero
+  ST = (role==='host') ? mpCaricaStato(code) : null;
   mpSalvaSessione();
   mpSocket();
   apriModal(`
@@ -1455,7 +1472,7 @@ function mpMsg(m){
   if(m.t==='nome'){
     MP.nomeAvversario = (m.nome||'').trim().slice(0,20) || null;
     mpSalvaSessione();
-    if(ST && ST.d) render();
+    if(ST) render();
     return;
   }
   if(m.t==='anim' && MP.role==='guest'){
@@ -1470,7 +1487,7 @@ function mpMsg(m){
       if(MP.role==='host' && m.on){
         // guest arrivato: avvia (o ri-sincronizza) la partita
         document.getElementById('overlay').classList.remove('on');
-        if(!ST || ST.fine || !ST.d) nuovaPartita();
+        if(!ST || ST.fine || !ST.punteggi) nuovaPartita();
         else mpInviaStato();
         setMsg(`🌐 ${MP.nomeAvversario||'Avversario'} è dei nostri. Si gioca!`);
       }
@@ -1479,12 +1496,12 @@ function mpMsg(m){
     return;
   }
   if(m.t==='state' && MP.role==='host'){
-    if(!ST || !ST.d){
+    if(!ST || !ST.punteggi){
       ST = m.state;   // resync dopo chiusura: lo stato è già nella prospettiva dell'host
       BUSY = false;
       document.getElementById('overlay').classList.remove('on');
       render();
-      setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Partita ripresa: tocca a te.' : `🌐 Partita ripresa: attendi ${MP.nomeAvversario||"l'avversario"}…`);
+      setMsg(ST.turno==='tu' ? '🌐 Partita ripresa: tocca a te.' : `🌐 Partita ripresa: attendi ${MP.nomeAvversario||"l'avversario"}…`);
     }
     return;
   }
@@ -1497,15 +1514,11 @@ function mpMsg(m){
       BUSY = false;
       render();
       if(ST.fine && !eraFinita){ setTimeout(fineGioco, 300); return; }
-      setMsg(ST.d && ST.d.turno==='tu' ? '🌐 Tocca a te.' : `🌐 Attendi la mossa di ${MP.nomeAvversario||"dell'avversario"}…`);
-      if(ST.d && ST.d.contata){
-        const k = 's'+ST.smazzate;
-        if(!MP.fineViste[k]){ MP.fineViste[k]=1; setTimeout(fineSmazzata, 300); }
-      }
+      setMsg(ST.turno==='tu' ? '🌐 Tocca a te.' : `🌐 Attendi la mossa di ${MP.nomeAvversario||"dell'avversario"}…`);
     });
     return;
   }
-  if(MP.role==='host' && ST && !ST.fine && ST.turno==='cpu' && !BUSY){
+  if(MP.role==='host' && ST && !ST.fine && !ST.chiusuraTurno && ST.turno==='cpu' && !BUSY){
     if(m.t==='tira'){
       tiraDadiRemoto();
       return;
@@ -1547,9 +1560,25 @@ function partitaAvviata(){
   return (caselleRiempite('tu') + caselleRiempite('cpu')) >= 3;
 }
 
+const MP_SAVE_KEY = 'yacht_mp_stato';
+function mpSalvaStato(){
+  try{
+    if(!MP || MP.role!=='host' || !ST || ST.fine) return;
+    localStorage.setItem(MP_SAVE_KEY, JSON.stringify({code:MP.code, quando:Date.now(), st:ST}));
+  }catch(e){}
+}
+function mpCaricaStato(code){
+  try{
+    const o = JSON.parse(localStorage.getItem(MP_SAVE_KEY)||'null');
+    if(!o || o.code!==code || !o.st || o.st.fine) return null;
+    if(Date.now()-o.quando > 12*3600*1000) return null;
+    return o.st;
+  }catch(e){ return null; }
+}
+
 function salvaPartita(){
   try{
-    if(mpAttivo()) return;
+    if(mpAttivo()){ mpSalvaStato(); return; }
     if(!ST || ST.fine || !partitaAvviata()){ localStorage.removeItem(SAVE_KEY); return; }
     localStorage.setItem(SAVE_KEY, JSON.stringify(ST));
   }catch(e){}
