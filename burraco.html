@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Burraco — prototipo</title>
+<style>
+:root{
+  --panno:#12563a; --panno2:#0d3f2b; --oro:#d9b45a;
+  --carta:#fbfaf6; --rosso:#c62828; --nero:#1a1a1a; --jolly:#6a3fa0;
+  --sel:#ffd54f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:radial-gradient(ellipse at 50% 30%,var(--panno),var(--panno2));
+  color:#fff;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ---------- CARTE ---------- */
+.c{
+  position:relative;flex:0 0 auto;width:46px;height:66px;border-radius:6px;
+  background:var(--carta);color:var(--nero);border:1px solid rgba(0,0,0,.35);
+  box-shadow:0 1px 3px rgba(0,0,0,.4);font-weight:700;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;transition:transform .12s;
+}
+.c.r{color:var(--rosso)} .c.j{color:var(--jolly)}
+.c .ang{position:absolute;top:2px;left:3px;font-size:12px;line-height:1;text-align:center}
+.c .ang small{display:block;font-size:10px}
+.c .mid{font-size:22px;opacity:.9}
+.c.sel{transform:translateY(-14px);box-shadow:0 0 0 3px var(--sel),0 4px 10px rgba(0,0,0,.5)}
+.c.wild::after{content:"";position:absolute;inset:0;border:2px dashed var(--jolly);border-radius:6px;opacity:.55}
+.c.mini{width:30px;height:44px}
+.c.mini .ang{font-size:10px}.c.mini .ang small{font-size:8px}.c.mini .mid{font-size:14px}
+.c.dorso{background:repeating-linear-gradient(45deg,#7a1f2b,#7a1f2b 4px,#5d1620 4px,#5d1620 8px);border-color:#3d0e14}
+
+/* ---------- LAYOUT ---------- */
+header{padding:6px 10px;display:flex;gap:8px;align-items:center;justify-content:space-between;
+  background:rgba(0,0,0,.25);font-size:12px;flex:0 0 auto}
+header b{color:var(--oro)}
+#tavolo{flex:1 1 auto;overflow-y:auto;padding:6px 8px 2px}
+.zona{margin-bottom:8px}
+.zona>h4{margin:0 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.75;font-weight:600}
+.meld{display:flex;gap:2px;padding:4px 6px;margin-bottom:4px;border-radius:8px;
+  background:rgba(0,0,0,.22);align-items:center;flex-wrap:wrap}
+.meld.att{outline:2px solid var(--sel);cursor:pointer}
+.meld .bad{margin-left:auto;font-size:10px;padding:2px 6px;border-radius:10px;background:var(--oro);color:#000;font-weight:700}
+.vuoto{opacity:.45;font-size:12px;font-style:italic;padding:2px 4px}
+
+#centro{display:flex;gap:14px;justify-content:center;align-items:center;padding:6px 0;flex:0 0 auto}
+#centro .pila{text-align:center;font-size:10px;opacity:.85}
+#centro .pila .c{margin:0 auto 3px}
+#centro .pila.ok .c{box-shadow:0 0 0 2px var(--oro),0 2px 6px rgba(0,0,0,.5);cursor:pointer}
+
+#manoWrap{flex:0 0 auto;background:rgba(0,0,0,.3);padding:14px 0 6px}
+#mano{display:flex;gap:3px;overflow-x:auto;padding:0 10px 6px;scrollbar-width:none}
+#mano::-webkit-scrollbar{display:none}
+#azioni{display:flex;gap:6px;padding:0 8px 8px;flex-wrap:wrap;justify-content:center}
+button{font:inherit;font-weight:600;font-size:13px;padding:9px 13px;border-radius:9px;border:0;
+  background:var(--oro);color:#1a1a1a}
+button.g{background:rgba(255,255,255,.16);color:#fff}
+button:disabled{opacity:.3}
+#msg{text-align:center;font-size:12px;min-height:16px;padding:0 10px 4px;color:var(--oro)}
+
+#overlay{position:fixed;inset:0;background:rgba(6,26,18,.97);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;z-index:20}
+#overlay.on{display:flex}
+#overlay h2{margin:0;font-size:22px}
+#overlay p{margin:0;opacity:.8;font-size:14px;max-width:340px;white-space:pre-line}
+</style>
+</head>
+<body>
+
+<header>
+  <span id="hL"></span>
+  <span id="hC"></span>
+  <span id="hR"></span>
+</header>
+
+<div id="tavolo"></div>
+
+<div id="centro">
+  <div class="pila" id="pTallone"></div>
+  <div class="pila" id="pScarti"></div>
+</div>
+
+<div id="manoWrap">
+  <div id="mano"></div>
+  <div id="msg"></div>
+  <div id="azioni"></div>
+</div>
+
+<div id="overlay">
+  <h2 id="ovT"></h2>
+  <p id="ovP"></p>
+  <button id="ovB"></button>
+</div>
+
+<script>
+/* ============================================================
+   BURRACO — prototipo hot-seat
+   Motore regole + UI. Nessuna CPU: due giocatori, stesso device.
+   Il multiplayer online si innesta dopo su questa stessa UI.
+   ============================================================ */
+
+/* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
+const CFG = {
+  MAZZI: 2, JOLLY: 4,
+  MANO: 11, POZZETTO: 11, N_POZZETTI: 2,
+  PT_PARTITA: 2000,
+  BURRACO_MIN: 7,
+  PT_PULITO: 200, PT_SPORCO: 100,
+  PT_CHIUSURA: 100, PEN_POZZETTO: 100,
+  ASSO_ALTO: true, ASSO_BASSO: true,
+  MAX_WILD: 1,               // wild per combinazione
+  GRUPPO_SEMI_RIPETUTI: true // permette il burraco di gruppo
+};
+
+const SEMI = ['s','h','d','c'];
+const SIMB = {s:'\u2660', h:'\u2665', d:'\u2666', c:'\u2663'};
+const NOMI = {1:'A',11:'J',12:'Q',13:'K'};
+const NOMI_G = ['Filippo','Mena'];
+
+const rk = r => NOMI[r] || String(r);
+const isJolly = c => c.r === 0;
+const isPinella = c => c.r === 2;
+const puoWild = c => isJolly(c) || isPinella(c);
+
+function valCarta(c){
+  if(c.r === 0) return 30;
+  if(c.r === 2) return 20;
+  if(c.r === 1) return 15;
+  return c.r >= 8 ? 10 : 5;
+}
+
+/* ---------- MAZZO ---------- */
+let _uid = 0;
+function nuovoMazzo(){
+  const m = [];
+  for(let d = 0; d < CFG.MAZZI; d++){
+    for(const s of SEMI) for(let r = 1; r <= 13; r++) m.push({id:++_uid, r, s});
+  }
+  for(let j = 0; j < CFG.JOLLY; j++) m.push({id:++_uid, r:0, s:'j'});
+  return mischia(m);
+}
+function mischia(a){
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ============================================================
+   MOTORE REGOLE
+   Una combinazione è { tipo, carte[], wild, rango|seme, vals[] }
+   `wild` = indice in carte[] della carta usata come jolly, -1 se pulita.
+   `vals` (solo scala) = valore rappresentato da ogni posizione.
+   ============================================================ */
+
+function costruisciGruppo(carte){
+  if(carte.length < 3) return null;
+  const prova = (wi) => {
+    const nat = carte.filter((_, i) => i !== wi);
+    if(nat.some(isJolly)) return null;
+    const R = nat[0].r;
+    if(!nat.every(c => c.r === R)) return null;
+    if(wi >= 0){
+      const w = carte[wi];
+      if(!puoWild(w)) return null;
+      if(isPinella(w) && R === 2) return null; // un 2 in un gruppo di 2 è naturale
+    }
+    if(!CFG.GRUPPO_SEMI_RIPETUTI){
+      const semi = new Set(nat.map(c => c.s));
+      if(semi.size !== nat.length) return null;
+    }
+    const ord = nat.concat(wi >= 0 ? [carte[wi]] : []);
+    return {tipo:'gruppo', rango:R, carte:ord, wild: wi >= 0 ? ord.length - 1 : -1};
+  };
+  let r = prova(-1);
+  if(r) return r;
+  for(let i = 0; i < carte.length; i++){
+    if(!puoWild(carte[i])) continue;
+    r = prova(i);
+    if(r) return r;
+  }
+  return null;
+}
+
+function costruisciScala(carte){
+  if(carte.length < 3) return null;
+  const tenta = (wi) => {
+    const nat = carte.filter((_, i) => i !== wi);
+    if(nat.some(isJolly)) return null;
+    const seme = nat[0].s;
+    if(!nat.every(c => c.s === seme)) return null;
+    if(wi >= 0 && !puoWild(carte[wi])) return null;
+
+    // gli assi possono valere 1 o 14: enumero le combinazioni
+    const idxA = nat.map((c, i) => c.r === 1 ? i : -1).filter(i => i >= 0);
+    const combo = 1 << idxA.length;
+    for(let mask = 0; mask < combo; mask++){
+      const v = nat.map(c => c.r);
+      idxA.forEach((ix, k) => { v[ix] = (mask >> k & 1) ? 14 : 1; });
+      if((v.includes(1) && !CFG.ASSO_BASSO) || (v.includes(14) && !CFG.ASSO_ALTO)) continue;
+      const sv = [...v].sort((a, b) => a - b);
+      if(sv.some((x, i) => i && x === sv[i - 1])) continue;   // doppioni
+      const min = sv[0], max = sv[sv.length - 1], span = max - min + 1;
+      const pos = new Map(); nat.forEach((c, i) => pos.set(v[i], c));
+
+      if(wi < 0){
+        if(span !== nat.length) continue;
+        return monta(seme, min, max, pos, null);
+      }
+      if(span === nat.length + 1){                 // il wild tappa un buco
+        for(let x = min; x <= max; x++) if(!pos.has(x))
+          return monta(seme, min, max, pos, {c:carte[wi], v:x});
+      }
+      if(span === nat.length){                     // il wild va in coda o in testa
+        if(max + 1 <= 14) return monta(seme, min, max + 1, pos, {c:carte[wi], v:max + 1});
+        if(min - 1 >= 1)  return monta(seme, min - 1, max, pos, {c:carte[wi], v:min - 1});
+      }
+    }
+    return null;
+  };
+  const monta = (seme, min, max, pos, w) => {
+    const out = [], vals = [];
+    for(let x = min; x <= max; x++){
+      if(pos.has(x)){ out.push(pos.get(x)); }
+      else if(w && w.v === x){ out.push(w.c); }
+      else return null;
+      vals.push(x);
+    }
+    const wi2 = w ? vals.indexOf(w.v) : -1;
+    return {tipo:'scala', seme, carte:out, vals, wild:wi2};
+  };
+
+  let r = tenta(-1);
+  if(r) return r;
+  for(let i = 0; i < carte.length; i++){
+    if(!puoWild(carte[i])) continue;
+    r = tenta(i);
+    if(r) return r;
+  }
+  return null;
+}
+
+// Prova gruppo poi scala. Ritorna la combinazione o null.
+function valida(carte){
+  if(carte.length < 3) return null;
+  const n = carte.filter(puoWild).length;
+  const naturali = carte.filter(c => !isJolly(c));
+  if(carte.length - naturali.length > CFG.MAX_WILD) return null;
+  return costruisciGruppo(carte) || costruisciScala(carte) || null;
+}
+
+// Riattacca: ricostruisce la combinazione dall'unione. Rispetta MAX_WILD.
+function riattacca(meld, aggiunte){
+  const tutte = meld.carte.concat(aggiunte);
+  const m = meld.tipo === 'gruppo'
+    ? (costruisciGruppo(tutte) || costruisciScala(tutte))
+    : (costruisciScala(tutte) || costruisciGruppo(tutte));
+  if(!m) return null;
+  const ids = new Set(m.carte.map(c => c.id));
+  if(tutte.some(c => !ids.has(c.id))) return null;
+  m.id = meld.id;
+  return m;
+}
+
+const isBurraco = m => m.carte.length >= CFG.BURRACO_MIN;
+const bonusBurraco = m => !isBurraco(m) ? 0 : (m.wild < 0 ? CFG.PT_PULITO : CFG.PT_SPORCO);
+
+/* ============================================================
+   STATO
+   ============================================================ */
+let ST = null, SEL = [], UNDO = [];
+
+function nuovaPartita(punti){
+  const m = nuovoMazzo();
+  ST = {
+    mani:[[], []], melds:[[], []], pozzetti:[], scarti:[], mazzo:[],
+    turno:0, fase:'pesca', pozzettoPreso:[false, false],
+    punti: punti || [0, 0], chiusuraDi:null, finita:false, meldId:0
+  };
+  for(let p = 0; p < 2; p++) for(let i = 0; i < CFG.MANO; i++) ST.mani[p].push(m.pop());
+  for(let k = 0; k < CFG.N_POZZETTI; k++){
+    const pz = []; for(let i = 0; i < CFG.POZZETTO; i++) pz.push(m.pop());
+    ST.pozzetti.push(pz);
+  }
+  ST.scarti.push(m.pop());
+  ST.mazzo = m;
+  ST.mani.forEach(ordina);
+  SEL = []; UNDO = [];
+}
+
+function ordina(h){
+  h.sort((a, b) => (a.r === 0) - (b.r === 0) || SEMI.indexOf(a.s) - SEMI.indexOf(b.s) || a.r - b.r);
+}
+
+const io = () => ST.turno;
+const mano = () => ST.mani[io()];
+const selCarte = () => mano().filter(c => SEL.includes(c.id));
+
+function snap(){
+  UNDO.push(JSON.stringify({m:ST.mani, d:ST.melds, s:ST.scarti, z:ST.mazzo, pz:ST.pozzetti,
+                            pp:ST.pozzettoPreso, f:ST.fase, mi:ST.meldId}));
+  if(UNDO.length > 40) UNDO.shift();
+}
+function annulla(){
+  if(!UNDO.length) return;
+  const o = JSON.parse(UNDO.pop());
+  ST.mani = o.m; ST.melds = o.d; ST.scarti = o.s; ST.mazzo = o.z;
+  ST.pozzetti = o.pz; ST.pozzettoPreso = o.pp; ST.fase = o.f; ST.meldId = o.mi;
+  SEL = []; render();
+}
+
+/* ---------- AZIONI ---------- */
+function pesca(dove){
+  if(ST.fase !== 'pesca') return;
+  snap();
+  if(dove === 'mazzo'){
+    if(!ST.mazzo.length) return fineTallone();
+    mano().push(ST.mazzo.pop());
+  } else {
+    if(!ST.scarti.length) return;
+    mano().push(...ST.scarti.splice(0));
+  }
+  ordina(mano());
+  ST.fase = 'gioca';
+  SEL = []; render();
+}
+
+function cala(){
+  const sel = selCarte();
+  const m = valida(sel);
+  if(!m) return msg('Combinazione non valida.');
+  snap();
+  m.id = ++ST.meldId;
+  ST.melds[io()].push(m);
+  ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
+  SEL = []; dopoCalata(); render();
+}
+
+function attacca(meldId){
+  const sel = selCarte();
+  if(!sel.length) return;
+  const arr = ST.melds[io()];
+  const i = arr.findIndex(x => x.id === meldId);
+  if(i < 0) return msg('Puoi attaccare solo alle tue combinazioni.');
+  const nm = riattacca(arr[i], sel);
+  if(!nm) return msg('Quelle carte non si attaccano lì.');
+  snap();
+  arr[i] = nm;
+  ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
+  SEL = []; dopoCalata(); render();
+}
+
+// Sostituisce la pinella/jolly di una scala con la carta naturale corrispondente.
+function sostituisci(meldId){
+  const sel = selCarte();
+  if(sel.length !== 1) return msg('Seleziona la carta naturale che rimpiazza il jolly.');
+  const arr = ST.melds[io()];
+  const i = arr.findIndex(x => x.id === meldId);
+  if(i < 0 || arr[i].wild < 0) return msg('Lì non c\'è nessun jolly da sostituire.');
+  const m = arr[i], w = m.wild, c = sel[0];
+  const ok = m.tipo === 'scala'
+    ? (c.s === m.seme && (c.r === m.vals[w] || (c.r === 1 && (m.vals[w] === 1 || m.vals[w] === 14))))
+    : (c.r === m.rango);
+  if(!ok) return msg('Quella carta non corrisponde al jolly.');
+  snap();
+  const wild = m.carte[w];
+  m.carte[w] = c; m.wild = -1;
+  ST.mani[io()] = mano().filter(x => x.id !== c.id);
+  mano().push(wild); ordina(mano());
+  SEL = []; render();
+  msg('Jolly recuperato: ricalalo in questo turno.');
+}
+
+function dopoCalata(){
+  if(mano().length === 0 && !ST.pozzettoPreso[io()] && ST.pozzetti.length){
+    ST.pozzettoPreso[io()] = true;
+    mano().push(...ST.pozzetti.pop());
+    ordina(mano());
+    msg('Pozzetto preso! Il turno continua.');
+  }
+}
+
+function haBurraco(p){ return ST.melds[p].some(isBurraco); }
+
+function scarta(){
+  if(ST.fase !== 'gioca') return msg('Prima devi pescare.');
+  const sel = selCarte();
+  if(sel.length !== 1) return msg('Seleziona una sola carta da scartare.');
+  const ultima = mano().length === 1;
+  if(ultima){
+    const puoPozzetto = !ST.pozzettoPreso[io()] && ST.pozzetti.length;
+    if(!puoPozzetto && !haBurraco(io()))
+      return msg('Non puoi chiudere: ti manca un burraco.');
+  }
+  snap();
+  const c = sel[0];
+  ST.scarti.push(c);
+  ST.mani[io()] = mano().filter(x => x.id !== c.id);
+  SEL = [];
+  if(mano().length === 0){
+    if(!ST.pozzettoPreso[io()] && ST.pozzetti.length){
+      ST.pozzettoPreso[io()] = true;
+      mano().push(...ST.pozzetti.pop());
+      ordina(mano());
+      passaTurno('Pozzetto preso a fine turno.');
+      return;
+    }
+    return chiudi(io());
+  }
+  passaTurno();
+}
+
+function passaTurno(nota){
+  ST.turno = 1 - ST.turno;
+  ST.fase = 'pesca';
+  UNDO = [];
+  render();
+  overlay('Passa il telefono', (nota ? nota + '\n\n' : '') + 'Tocca a ' + NOMI_G[ST.turno] + '.',
+          'Sono ' + NOMI_G[ST.turno], () => { closeOverlay(); render(); });
+}
+
+function fineTallone(){
+  msg('Tallone esaurito.');
+  chiudi(null);
+}
+
+/* ---------- PUNTEGGIO ---------- */
+function conta(p){
+  let s = 0, det = [];
+  for(const m of ST.melds[p]){
+    let v = 0; for(const c of m.carte) v += valCarta(c);
+    const b = bonusBurraco(m);
+    s += v + b;
+    if(b) det.push((m.wild < 0 ? 'burraco pulito' : 'burraco sporco') + ' +' + b);
+  }
+  let penMano = 0; for(const c of ST.mani[p]) penMano += valCarta(c);
+  s -= penMano;
+  if(!ST.pozzettoPreso[p]){ s -= CFG.PEN_POZZETTO; det.push('pozzetto non preso \u2212' + CFG.PEN_POZZETTO); }
+  if(ST.chiusuraDi === p){ s += CFG.PT_CHIUSURA; det.push('chiusura +' + CFG.PT_CHIUSURA); }
+  if(penMano) det.push('carte in mano \u2212' + penMano);
+  return {s, det};
+}
+
+function chiudi(p){
+  ST.chiusuraDi = p;
+  ST.finita = true;
+  const a = conta(0), b = conta(1);
+  ST.punti[0] += a.s; ST.punti[1] += b.s;
+  render();
+  const riga = (i, r) => NOMI_G[i] + ': ' + (r.s >= 0 ? '+' : '') + r.s +
+      (r.det.length ? '  (' + r.det.join(', ') + ')' : '') + '\ntotale ' + ST.punti[i];
+  const vinta = ST.punti.some(x => x >= CFG.PT_PARTITA);
+  overlay(p === null ? 'Tallone finito' : NOMI_G[p] + ' chiude',
+    riga(0, a) + '\n\n' + riga(1, b) + (vinta ? '\n\nPartita vinta da ' +
+      NOMI_G[ST.punti[0] > ST.punti[1] ? 0 : 1] + '.' : ''),
+    vinta ? 'Nuova partita' : 'Smazzata successiva',
+    () => { nuovaPartita(vinta ? [0, 0] : ST.punti); closeOverlay(); render(); });
+}
+
+/* ============================================================
+   RENDER
+   cardHTML() è l'unico punto che disegna una carta:
+   per passare a un mazzo SVG si cambia solo questa funzione.
+   ============================================================ */
+function cardHTML(c, opt){
+  opt = opt || {};
+  const cls = ['c'];
+  if(opt.mini) cls.push('mini');
+  if(opt.sel) cls.push('sel');
+  if(opt.wild) cls.push('wild');
+  if(isJolly(c)) cls.push('j');
+  else if(c.s === 'h' || c.s === 'd') cls.push('r');
+  const dati = 'data-id="' + c.id + '"';
+  if(isJolly(c))
+    return '<div class="' + cls.join(' ') + '" ' + dati + '><div class="mid">\u2605</div></div>';
+  return '<div class="' + cls.join(' ') + '" ' + dati + '>' +
+    '<div class="ang">' + rk(c.r) + '<small>' + SIMB[c.s] + '</small></div>' +
+    '<div class="mid">' + SIMB[c.s] + '</div></div>';
+}
+
+function meldHTML(m, mio){
+  const att = mio && SEL.length ? ' att' : '';
+  let h = '<div class="meld' + att + '" data-meld="' + m.id + '">';
+  m.carte.forEach((c, i) => h += cardHTML(c, {mini:true, wild:i === m.wild}));
+  if(isBurraco(m)) h += '<span class="bad">' + (m.wild < 0 ? 'PULITO' : 'BURRACO') + '</span>';
+  h += '</div>';
+  return h;
+}
+
+function render(){
+  const p = io(), av = 1 - p;
+  document.getElementById('hL').innerHTML =
+    '<b>' + NOMI_G[0] + '</b> ' + ST.punti[0] + ' &nbsp; <b>' + NOMI_G[1] + '</b> ' + ST.punti[1];
+  document.getElementById('hC').innerHTML =
+    'turno: <b>' + NOMI_G[p] + '</b> \u00b7 ' + (ST.fase === 'pesca' ? 'pesca' : 'gioca');
+  document.getElementById('hR').innerHTML =
+    'pozzetti ' + ST.pozzetti.length + ' \u00b7 tallone ' + ST.mazzo.length;
+
+  const zona = (i, tit) => {
+    let h = '<div class="zona"><h4>' + tit + '</h4>';
+    if(!ST.melds[i].length) h += '<div class="vuoto">nessuna combinazione</div>';
+    else ST.melds[i].forEach(m => h += meldHTML(m, i === p));
+    return h + '</div>';
+  };
+  document.getElementById('tavolo').innerHTML =
+    zona(av, NOMI_G[av] + ' \u2014 ' + ST.mani[av].length + ' carte in mano' +
+         (ST.pozzettoPreso[av] ? ' \u00b7 pozzetto preso' : '')) +
+    zona(p, NOMI_G[p] + ' (tu)' + (ST.pozzettoPreso[p] ? ' \u00b7 pozzetto preso' : ''));
+
+  const pesc = ST.fase === 'pesca' && !ST.finita;
+  document.getElementById('pTallone').className = 'pila' + (pesc && ST.mazzo.length ? ' ok' : '');
+  document.getElementById('pTallone').innerHTML =
+    '<div class="c dorso" data-pesca="mazzo"></div>tallone ' + ST.mazzo.length;
+  document.getElementById('pScarti').className = 'pila' + (pesc && ST.scarti.length ? ' ok' : '');
+  const top = ST.scarti[ST.scarti.length - 1];
+  document.getElementById('pScarti').innerHTML =
+    (top ? cardHTML(top) : '<div class="c" style="opacity:.25"></div>') +
+    'scarti ' + ST.scarti.length;
+
+  document.getElementById('mano').innerHTML =
+    ST.mani[p].map(c => cardHTML(c, {sel:SEL.includes(c.id)})).join('');
+
+  const s = SEL.length, gioca = ST.fase === 'gioca' && !ST.finita;
+  document.getElementById('azioni').innerHTML =
+    '<button id="bCala"'   + (gioca && s >= 3 ? '' : ' disabled') + '>Cala</button>' +
+    '<button id="bScarta"' + (gioca && s === 1 ? '' : ' disabled') + '>Scarta</button>' +
+    '<button class="g" id="bDesel"' + (s ? '' : ' disabled') + '>Deseleziona</button>' +
+    '<button class="g" id="bUndo"'  + (UNDO.length && gioca ? '' : ' disabled') + '>Annulla</button>';
+  bind();
+}
+
+let _msgT;
+function msg(t){
+  document.getElementById('msg').textContent = t;
+  clearTimeout(_msgT); _msgT = setTimeout(() => {
+    document.getElementById('msg').textContent = '';
+  }, 3200);
+}
+
+function overlay(t, p, b, cb){
+  document.getElementById('ovT').textContent = t;
+  document.getElementById('ovP').textContent = p;
+  document.getElementById('ovB').textContent = b;
+  document.getElementById('ovB').onclick = cb;
+  document.getElementById('overlay').classList.add('on');
+}
+const closeOverlay = () => document.getElementById('overlay').classList.remove('on');
+
+/* ---------- EVENTI ---------- */
+function bind(){
+  document.querySelectorAll('#mano .c').forEach(el => el.onclick = () => {
+    const id = +el.dataset.id;
+    SEL.includes(id) ? SEL = SEL.filter(x => x !== id) : SEL.push(id);
+    render();
+  });
+  document.querySelectorAll('[data-pesca]').forEach(el => el.onclick = () => pesca(el.dataset.pesca));
+  document.getElementById('pScarti').onclick = () => { if(ST.fase === 'pesca') pesca('scarti'); };
+  document.querySelectorAll('.meld').forEach(el => el.onclick = () => {
+    const id = +el.dataset.meld;
+    if(!SEL.length) return;
+    if(SEL.length === 1) {
+      const arr = ST.melds[io()], m = arr.find(x => x.id === id);
+      if(m && m.wild >= 0 && !riattacca(m, selCarte())) return sostituisci(id);
+    }
+    attacca(id);
+  });
+  const on = (i, f) => { const e = document.getElementById(i); if(e) e.onclick = f; };
+  on('bCala', cala);
+  on('bScarta', scarta);
+  on('bDesel', () => { SEL = []; render(); });
+  on('bUndo', annulla);
+}
+
+/* ---------- AVVIO ---------- */
+nuovaPartita();
+render();
+overlay('Burraco', 'Prototipo hot-seat: si gioca in due sullo stesso telefono.\nNiente CPU, niente online (per ora).\n\nInizia ' + NOMI_G[0] + '.',
+        'Comincia', () => { closeOverlay(); render(); });
+</script>
+</body>
+</html>
