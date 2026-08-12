@@ -452,20 +452,24 @@ function fineTallone(){
 }
 
 /* ---------- PUNTEGGIO ---------- */
+// Restituisce il totale e TUTTE le voci che lo compongono: senza il valore
+// delle carte calate il conteggio non è verificabile.
 function conta(p){
-  let s = 0, det = [];
+  const voci = [];
+  let carte = 0;
+  for(const m of ST.melds[p]) for(const c of m.carte) carte += valCarta(c);
+  if(carte) voci.push(['carte calate', carte]);
   for(const m of ST.melds[p]){
-    let v = 0; for(const c of m.carte) v += valCarta(c);
     const b = bonusBurraco(m);
-    s += v + b;
-    if(b) det.push((m.wild < 0 ? 'burraco pulito' : 'burraco sporco') + ' +' + b);
+    if(b) voci.push([m.wild < 0 ? 'burraco pulito (' + m.carte.length + ')'
+                                : 'burraco sporco (' + m.carte.length + ')', b]);
   }
-  let penMano = 0; for(const c of ST.mani[p]) penMano += valCarta(c);
-  s -= penMano;
-  if(!ST.pozzettoPreso[p]){ s -= CFG.PEN_POZZETTO; det.push('pozzetto non preso \u2212' + CFG.PEN_POZZETTO); }
-  if(ST.chiusuraDi === p){ s += CFG.PT_CHIUSURA; det.push('chiusura +' + CFG.PT_CHIUSURA); }
-  if(penMano) det.push('carte in mano \u2212' + penMano);
-  return {s, det};
+  if(ST.chiusuraDi === p) voci.push(['chiusura', CFG.PT_CHIUSURA]);
+  let mano = 0; for(const c of ST.mani[p]) mano += valCarta(c);
+  if(mano) voci.push(['carte in mano (' + ST.mani[p].length + ')', -mano]);
+  if(!ST.pozzettoPreso[p]) voci.push(['pozzetto non preso', -CFG.PEN_POZZETTO]);
+  const s = voci.reduce((t, v) => t + v[1], 0);
+  return {s, voci};
 }
 
 function chiudi(p){
@@ -476,8 +480,11 @@ function chiudi(p){
   render();
   if(_voliScarto){ anima(_voliScarto); _voliScarto = null; }
   const attesa = finVolo(1);
-  const riga = (i, r) => NOMI_G[i] + ': ' + (r.s >= 0 ? '+' : '') + r.s +
-      (r.det.length ? '  (' + r.det.join(', ') + ')' : '') + '\ntotale ' + ST.punti[i];
+  const seg = n => (n >= 0 ? '+' : '\u2212') + Math.abs(n);
+  const riga = (i, r) =>
+    NOMI_G[i] + '\n' +
+    (r.voci.length ? r.voci.map(v => '   ' + v[0] + '  ' + seg(v[1])).join('\n') + '\n' : '') +
+    '   = ' + seg(r.s) + '   \u00b7   in tutto ' + ST.punti[i];
   const vinta = ST.punti.some(x => x >= CFG.PT_PARTITA);
   setTimeout(() => overlay(p === null ? 'Tallone finito' : NOMI_G[p] + ' chiude',
     riga(0, a) + '\n\n' + riga(1, b) + (vinta ? '\n\nPartita vinta da ' +
