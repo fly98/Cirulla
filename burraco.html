@@ -66,12 +66,10 @@ header b{color:var(--oro)}
 
 #manoWrap{flex:0 0 auto;background:rgba(0,0,0,.3);padding:1.6em 0 .4em}
 #mano{display:flex;justify-content:center;align-items:flex-end;padding:0 10px 6px;overflow:visible}
-#azioni{display:flex;gap:6px;padding:0 8px 8px;flex-wrap:wrap;justify-content:center}
 button{font:inherit;font-weight:600;font-size:.92em;padding:.6em .95em;border-radius:9px;border:0;
   background:var(--oro);color:#1a1a1a}
-button.g{background:rgba(255,255,255,.16);color:#fff}
-button:disabled{opacity:.3}
-#msg{text-align:center;font-size:.82em;min-height:1.3em;padding:0 10px 4px;color:var(--oro)}
+#msg{text-align:center;font-size:.8em;min-height:1.3em;padding:0 10px 6px;color:var(--oro);opacity:.9}
+#tavolo.cala{background:rgba(255,213,79,.07)}
 
 #overlay{position:fixed;inset:0;background:rgba(6,26,18,.97);display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;z-index:20}
@@ -98,7 +96,6 @@ button:disabled{opacity:.3}
 <div id="manoWrap">
   <div id="mano"></div>
   <div id="msg"></div>
-  <div id="azioni"></div>
 </div>
 
 <div id="overlay">
@@ -284,7 +281,7 @@ const bonusBurraco = m => !isBurraco(m) ? 0 : (m.wild < 0 ? CFG.PT_PULITO : CFG.
 /* ============================================================
    STATO
    ============================================================ */
-let ST = null, SEL = [], UNDO = [];
+let ST = null, SEL = [];
 
 function nuovaPartita(punti){
   const m = nuovoMazzo();
@@ -301,7 +298,7 @@ function nuovaPartita(punti){
   ST.scarti.push(m.pop());
   ST.mazzo = m;
   ST.mani.forEach(ordina);
-  SEL = []; UNDO = [];
+  SEL = [];
 }
 
 function ordina(h){
@@ -312,23 +309,9 @@ const io = () => ST.turno;
 const mano = () => ST.mani[io()];
 const selCarte = () => mano().filter(c => SEL.includes(c.id));
 
-function snap(){
-  UNDO.push(JSON.stringify({m:ST.mani, d:ST.melds, s:ST.scarti, z:ST.mazzo, pz:ST.pozzetti,
-                            pp:ST.pozzettoPreso, f:ST.fase, mi:ST.meldId}));
-  if(UNDO.length > 40) UNDO.shift();
-}
-function annulla(){
-  if(!UNDO.length) return;
-  const o = JSON.parse(UNDO.pop());
-  ST.mani = o.m; ST.melds = o.d; ST.scarti = o.s; ST.mazzo = o.z;
-  ST.pozzetti = o.pz; ST.pozzettoPreso = o.pp; ST.fase = o.f; ST.meldId = o.mi;
-  SEL = []; render();
-}
-
 /* ---------- AZIONI ---------- */
 function pesca(dove){
   if(ST.fase !== 'pesca') return;
-  snap();
   if(dove === 'mazzo'){
     if(!ST.mazzo.length) return fineTallone();
     mano().push(ST.mazzo.pop());
@@ -345,7 +328,6 @@ function cala(){
   const sel = selCarte();
   const m = valida(sel);
   if(!m) return msg('Combinazione non valida.');
-  snap();
   m.id = ++ST.meldId;
   ST.melds[io()].push(m);
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
@@ -360,7 +342,6 @@ function attacca(meldId){
   if(i < 0) return msg('Puoi attaccare solo alle tue combinazioni.');
   const nm = riattacca(arr[i], sel);
   if(!nm) return msg('Quelle carte non si attaccano lì.');
-  snap();
   arr[i] = nm;
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
   SEL = []; dopoCalata(); render();
@@ -378,7 +359,6 @@ function sostituisci(meldId){
     ? (c.s === m.seme && (c.r === m.vals[w] || (c.r === 1 && (m.vals[w] === 1 || m.vals[w] === 14))))
     : (c.r === m.rango);
   if(!ok) return msg('Quella carta non corrisponde al jolly.');
-  snap();
   const wild = m.carte[w];
   m.carte[w] = c; m.wild = -1;
   ST.mani[io()] = mano().filter(x => x.id !== c.id);
@@ -401,14 +381,13 @@ function haBurraco(p){ return ST.melds[p].some(isBurraco); }
 function scarta(){
   if(ST.fase !== 'gioca') return msg('Prima devi pescare.');
   const sel = selCarte();
-  if(sel.length !== 1) return msg('Seleziona una sola carta da scartare.');
+  if(sel.length !== 1) return msg('Per scartare seleziona una carta sola.');
   const ultima = mano().length === 1;
   if(ultima){
     const puoPozzetto = !ST.pozzettoPreso[io()] && ST.pozzetti.length;
     if(!puoPozzetto && !haBurraco(io()))
       return msg('Non puoi chiudere: ti manca un burraco.');
   }
-  snap();
   const c = sel[0];
   ST.scarti.push(c);
   ST.mani[io()] = mano().filter(x => x.id !== c.id);
@@ -429,7 +408,6 @@ function scarta(){
 function passaTurno(nota){
   ST.turno = 1 - ST.turno;
   ST.fase = 'pesca';
-  UNDO = [];
   render();
   overlay('Passa il telefono', (nota ? nota + '\n\n' : '') + 'Tocca a ' + NOMI_G[ST.turno] + '.',
           'Sono ' + NOMI_G[ST.turno], () => { closeOverlay(); render(); });
@@ -621,12 +599,9 @@ function render(){
   document.getElementById('mano').innerHTML =
     ST.mani[p].map(c => cardHTML(c, {sel:SEL.includes(c.id)})).join('');
 
-  const s = SEL.length, gioca = ST.fase === 'gioca' && !ST.finita;
-  document.getElementById('azioni').innerHTML =
-    '<button id="bCala"'   + (gioca && s >= 3 ? '' : ' disabled') + '>Cala</button>' +
-    '<button id="bScarta"' + (gioca && s === 1 ? '' : ' disabled') + '>Scarta</button>' +
-    '<button class="g" id="bDesel"' + (s ? '' : ' disabled') + '>Deseleziona</button>' +
-    '<button class="g" id="bUndo"'  + (UNDO.length && gioca ? '' : ' disabled') + '>Annulla</button>';
+  document.getElementById('tavolo').className =
+    (ST.fase === 'gioca' && SEL.length >= 3 && !ST.finita) ? 'cala' : '';
+  suggerimento();
 
   ventaglio(document.getElementById('mano'), B, 0.50);
   const maxCol = Math.max(70, document.getElementById('tavolo').clientHeight / 2 - 36);
@@ -634,12 +609,24 @@ function render(){
   bind();
 }
 
-let _msgT;
+let _msgT, _avviso = false;
 function msg(t){
   document.getElementById('msg').textContent = t;
-  clearTimeout(_msgT); _msgT = setTimeout(() => {
-    document.getElementById('msg').textContent = '';
-  }, 3200);
+  _avviso = true;
+  clearTimeout(_msgT);
+  _msgT = setTimeout(() => { _avviso = false; suggerimento(); }, 3000);
+}
+// I pulsanti non ci sono più: questa riga dice cosa si può toccare adesso.
+function suggerimento(){
+  if(_avviso || !ST || ST.finita) return;
+  const s = SEL.length;
+  let t;
+  if(ST.fase === 'pesca')      t = 'Pesca: tocca il tallone o la pila scarti';
+  else if(s === 0)             t = 'Seleziona le carte da giocare';
+  else if(s === 1)             t = 'Tocca gli scarti per scartare \u00b7 una calata per attaccare';
+  else if(s === 2)             t = 'Tocca una calata per attaccare (per calare servono 3 carte)';
+  else                         t = 'Tocca il tavolo per calare \u00b7 una calata per attaccare';
+  document.getElementById('msg').textContent = t;
 }
 
 function overlay(t, p, b, cb){
@@ -659,8 +646,21 @@ function bind(){
     render();
   });
   document.querySelectorAll('[data-pesca]').forEach(el => el.onclick = () => pesca(el.dataset.pesca));
-  document.getElementById('scarti').onclick = () => { if(ST.fase === 'pesca') pesca('scarti'); };
-  document.querySelectorAll('.meld').forEach(el => el.onclick = () => {
+  document.getElementById('scarti').onclick = () => {
+    if(ST.finita) return;
+    if(ST.fase === 'pesca') return pesca('scarti');
+    if(SEL.length === 1) return scarta();
+    msg(SEL.length ? 'Per scartare seleziona una carta sola.' : 'Seleziona la carta da scartare.');
+  };
+  document.getElementById('tavolo').onclick = () => {
+    if(ST.finita) return;
+    if(ST.fase === 'pesca') return msg('Prima devi pescare.');
+    if(!SEL.length) return;
+    if(SEL.length < 3) return msg('Per calare servono almeno 3 carte.');
+    cala();
+  };
+  document.querySelectorAll('.meld').forEach(el => el.onclick = (ev) => {
+    ev.stopPropagation();                       // non deve valere anche come "cala"
     const id = +el.dataset.meld;
     if(!SEL.length) return;
     if(SEL.length === 1) {
@@ -669,11 +669,6 @@ function bind(){
     }
     attacca(id);
   });
-  const on = (i, f) => { const e = document.getElementById(i); if(e) e.onclick = f; };
-  on('bCala', cala);
-  on('bScarta', scarta);
-  on('bDesel', () => { SEL = []; render(); });
-  on('bUndo', annulla);
 }
 
 /* ---------- AVVIO ---------- */
