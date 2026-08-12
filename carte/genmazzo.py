@@ -42,8 +42,10 @@ RANK_MAXW = 0.300                      # oltre questa larghezza il valore viene 
 
 SUIT_BIG_C = (0.186, 0.413)            # centro del seme grande
 SUIT_BIG_H = 0.211                     # altezza inchiostro
-SUIT_SM_C = (0.461, 0.093)             # seme piccolo in alto
-SUIT_SM_H = 0.099
+# Il seme piccolo misurato sul riferimento sarebbe 0.099, ma a schermo si legge
+# male: portato a 0.135 e spostato a destra per non toccare il "10".
+SUIT_SM_C = (0.478, 0.098)             # seme piccolo in alto
+SUIT_SM_H = 0.135
 
 
 def _misura(txt, size):
