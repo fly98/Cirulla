@@ -50,10 +50,18 @@ header b{color:var(--oro)}
 .meld .bad{margin-left:auto;font-size:10px;padding:2px 6px;border-radius:10px;background:var(--oro);color:#000;font-weight:700}
 .vuoto{opacity:.45;font-size:12px;font-style:italic;padding:2px 4px}
 
-#centro{display:flex;gap:14px;justify-content:center;align-items:center;padding:6px 0;flex:0 0 auto}
-#centro .pila{text-align:center;font-size:10px;opacity:.85}
+#centro{display:flex;gap:10px;align-items:flex-end;padding:4px 8px 6px;flex:0 0 auto}
+#centro .pila{text-align:center;font-size:10px;opacity:.85;flex:0 0 auto}
 #centro .pila .c{margin:0 auto 3px}
 #centro .pila.ok .c{box-shadow:0 0 0 2px var(--oro),0 2px 6px rgba(0,0,0,.5);cursor:pointer}
+#scarti{flex:1 1 auto;min-width:0;border-radius:8px;padding:3px 5px;background:rgba(0,0,0,.2)}
+#scarti.ok{outline:2px solid var(--oro);cursor:pointer}
+#scarti .lab{font-size:10px;opacity:.85;margin-bottom:2px;display:flex;justify-content:space-between}
+#scartiFan{max-height:118px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+#scartiFan::-webkit-scrollbar{display:none}
+.frow{display:flex;align-items:flex-end;overflow:visible;margin-bottom:2px}
+.frow .c:last-child{box-shadow:0 0 0 2px rgba(255,255,255,.75),0 2px 6px rgba(0,0,0,.5)}
+.frow:not(:last-child) .c:last-child{box-shadow:0 1px 3px rgba(0,0,0,.4)}
 
 #manoWrap{flex:0 0 auto;background:rgba(0,0,0,.3);padding:22px 0 6px}
 #mano{display:flex;justify-content:center;align-items:flex-end;padding:0 10px 6px;
@@ -84,7 +92,7 @@ button:disabled{opacity:.3}
 
 <div id="centro">
   <div class="pila" id="pTallone"></div>
-  <div class="pila" id="pScarti"></div>
+  <div id="scarti"><div class="lab" id="scartiLab"></div><div id="scartiFan"></div></div>
 </div>
 
 <div id="manoWrap">
@@ -544,11 +552,23 @@ function render(){
   document.getElementById('pTallone').className = 'pila' + (pesc && ST.mazzo.length ? ' ok' : '');
   document.getElementById('pTallone').innerHTML =
     '<div class="c dorso" data-pesca="mazzo"></div>tallone ' + ST.mazzo.length;
-  document.getElementById('pScarti').className = 'pila' + (pesc && ST.scarti.length ? ' ok' : '');
-  const top = ST.scarti[ST.scarti.length - 1];
-  document.getElementById('pScarti').innerHTML =
-    (top ? cardHTML(top) : '<div class="c" style="opacity:.25"></div>') +
-    'scarti ' + ST.scarti.length;
+  // Pila scarti: sempre tutta visibile, a righe sovrapposte, la più recente in fondo.
+  const sc = document.getElementById('scartiFan');
+  const prendibile = pesc && ST.scarti.length > 0;
+  document.getElementById('scarti').className = prendibile ? 'ok' : '';
+  document.getElementById('scartiLab').innerHTML =
+    '<span>scarti \u00b7 ' + ST.scarti.length + '</span>' +
+    (prendibile ? '<span>tocca per prenderli tutti</span>' : '');
+  const Wsc = (sc.clientWidth || innerWidth - 110) - 8;
+  const perRiga = Math.max(3, Math.floor((Wsc - 34) / 17) + 1);
+  let hs = '';
+  for(let i = 0; i < ST.scarti.length; i += perRiga)
+    hs += '<div class="frow">' +
+          ST.scarti.slice(i, i + perRiga).map(c => cardHTML(c, {mini:true})).join('') +
+          '</div>';
+  sc.innerHTML = hs || '<div class="vuoto">pila vuota</div>';
+  sc.querySelectorAll('.frow').forEach(r => ventaglio(r, 34, 0.5));
+  sc.scrollTop = sc.scrollHeight;
 
   document.getElementById('mano').innerHTML =
     ST.mani[p].map(c => cardHTML(c, {sel:SEL.includes(c.id)})).join('');
@@ -590,7 +610,7 @@ function bind(){
     render();
   });
   document.querySelectorAll('[data-pesca]').forEach(el => el.onclick = () => pesca(el.dataset.pesca));
-  document.getElementById('pScarti').onclick = () => { if(ST.fase === 'pesca') pesca('scarti'); };
+  document.getElementById('scarti').onclick = () => { if(ST.fase === 'pesca') pesca('scarti'); };
   document.querySelectorAll('.meld').forEach(el => el.onclick = () => {
     const id = +el.dataset.meld;
     if(!SEL.length) return;
