@@ -118,7 +118,14 @@ const CFG = {
   MANO: 11, POZZETTO: 11, N_POZZETTI: 2,
   PT_PARTITA: 2000,
   BURRACO_MIN: 7,
-  PT_PULITO: 200, PT_SPORCO: 100,
+  // Punteggi del Codice di Gara FIBuR (burraco italiano).
+  // Il semipulito è stato introdotto dalla FIBuR nel 2008; nel burraco
+  // INTERNAZIONALE non esiste: per quella variante metti PT_SEMIPULITO a 100.
+  PT_REALE: 300,        // scala di 13 carte A-K o 2-A, senza matta
+  PT_SUPER: 250,        // combinazione di 8 carte uguali, senza matta
+  PT_PULITO: 200,
+  PT_SEMIPULITO: 150,   // matta in testa o in coda a 7+ carte, o gruppo di 8+ con matta
+  PT_SPORCO: 100,
   PT_CHIUSURA: 100, PEN_POZZETTO: 100,
   ASSO_ALTO: true, ASSO_BASSO: true,
   MAX_WILD: 1,               // wild per combinazione
@@ -277,7 +284,27 @@ function riattacca(meld, aggiunte){
 }
 
 const isBurraco = m => m.carte.length >= CFG.BURRACO_MIN;
-const bonusBurraco = m => !isBurraco(m) ? 0 : (m.wild < 0 ? CFG.PT_PULITO : CFG.PT_SPORCO);
+
+/* Classificazione secondo il Codice di Gara FIBuR.
+   Nota: un 2 al suo posto naturale NON è una matta, e infatti qui in quel caso
+   `wild` vale già -1, quindi il burraco resta pulito come vuole il regolamento. */
+function tipoBurraco(m){
+  if(!isBurraco(m)) return null;
+  const n = m.carte.length;
+  if(m.wild < 0){
+    if(m.tipo === 'scala' && n === 13 &&
+       ((m.vals[0] === 1 && m.vals[12] === 13) || (m.vals[0] === 2 && m.vals[12] === 14)))
+      return ['reale', CFG.PT_REALE];
+    if(m.tipo === 'gruppo' && n >= 8) return ['super', CFG.PT_SUPER];
+    return ['pulito', CFG.PT_PULITO];
+  }
+  // semipulito: la matta precede o segue almeno sette carte, oppure gruppo di 8+
+  if(m.tipo === 'scala' && n >= 8 && (m.wild === 0 || m.wild === n - 1))
+    return ['semipulito', CFG.PT_SEMIPULITO];
+  if(m.tipo === 'gruppo' && n >= 8) return ['semipulito', CFG.PT_SEMIPULITO];
+  return ['sporco', CFG.PT_SPORCO];
+}
+const bonusBurraco = m => { const t = tipoBurraco(m); return t ? t[1] : 0; };
 
 /* ============================================================
    STATO E SALVATAGGIO
@@ -413,6 +440,9 @@ function scarta(){
     const puoPozzetto = !ST.pozzettoPreso[io()] && ST.pozzetti.length;
     if(!puoPozzetto && !haBurraco(io()))
       return msg('Non puoi chiudere: ti manca un burraco.');
+    // Codice FIBuR: la matta si può scartare sempre, tranne per la chiusura
+    if(!puoPozzetto && puoWild(sel[0]))
+      return msg('Non puoi chiudere scartando una matta.');
   }
   const c = sel[0];
   const voli = cattura([c], '#mano');
@@ -460,14 +490,15 @@ function conta(p){
   for(const m of ST.melds[p]) for(const c of m.carte) carte += valCarta(c);
   if(carte) voci.push(['carte calate', carte]);
   for(const m of ST.melds[p]){
-    const b = bonusBurraco(m);
-    if(b) voci.push([m.wild < 0 ? 'burraco pulito (' + m.carte.length + ')'
-                                : 'burraco sporco (' + m.carte.length + ')', b]);
+    const t = tipoBurraco(m);
+    if(t) voci.push(['burraco ' + t[0] + ' (' + m.carte.length + ')', t[1]]);
   }
   if(ST.chiusuraDi === p) voci.push(['chiusura', CFG.PT_CHIUSURA]);
   let mano = 0; for(const c of ST.mani[p]) mano += valCarta(c);
   if(mano) voci.push(['carte in mano (' + ST.mani[p].length + ')', -mano]);
-  if(!ST.pozzettoPreso[p]) voci.push(['pozzetto non preso', -CFG.PEN_POZZETTO]);
+  // FIBuR: se nessuno dei due ha preso il pozzetto, non si conteggia a nessuno
+  if(!ST.pozzettoPreso[p] && ST.pozzettoPreso.some(Boolean))
+    voci.push(['pozzetto non preso', -CFG.PEN_POZZETTO]);
   const s = voci.reduce((t, v) => t + v[1], 0);
   return {s, voci};
 }
@@ -582,7 +613,8 @@ function colonna(el, w, maxH){
 function meldHTML(m, mio){
   const att = mio && SEL.length ? ' att' : '';
   let h = '<div class="meld' + att + '" data-meld="' + m.id + '">';
-  if(isBurraco(m)) h += '<span class="bad">' + (m.wild < 0 ? 'PULITO' : 'BURRACO') + '</span>';
+  const t = tipoBurraco(m);
+  if(t) h += '<span class="bad">' + t[0].toUpperCase() + '</span>';
   // In tavola si impilano decrescenti: la scala va rovesciata (è costruita
   // dal valore più basso), e con lei l'indice del jolly.
   let ord = m.carte.map((c, i) => ({c, w: i === m.wild}));
