@@ -21,7 +21,7 @@ body{
 
 /* ---------- CARTE ---------- */
 .c{
-  position:relative;flex:0 0 auto;width:46px;height:69px;border-radius:5px;
+  position:relative;flex:0 0 auto;width:46px;height:64px;border-radius:5px;
   background:var(--carta);box-shadow:0 1px 3px rgba(0,0,0,.45);transition:transform .12s;
 }
 .c img{width:100%;height:100%;display:block;border-radius:5px;pointer-events:none}
@@ -505,7 +505,7 @@ function scalaUI(){
   const k = baseCarta() / 46;
   document.body.style.fontSize = (15 * Math.min(k, 1.9)).toFixed(1) + 'px';
   document.getElementById('scartiFan').style.maxHeight =
-    Math.round(baseCarta() * 0.72 * 1.5 * 2 + 10) + 'px';
+    Math.round(baseCarta() * 0.72 * 1.4 * 2 + 10) + 'px';
 }
 
 function ventaglio(el, baseW, quota){
@@ -523,7 +523,7 @@ function ventaglio(el, baseW, quota){
   }
   k.forEach((c, i) => {
     c.style.width = w + 'px';
-    c.style.height = (w * 1.5) + 'px';
+    c.style.height = (w * 1.4) + 'px';
     c.style.setProperty('--lift', (w * 0.34) + 'px');
     c.style.marginLeft = i ? (passo - w) + 'px' : '0';
     c.style.zIndex = c.classList.contains('sel') ? 300 + i : i + 1;
@@ -564,7 +564,7 @@ function render(){
   const pesc = ST.fase === 'pesca' && !ST.finita;
   document.getElementById('pTallone').className = 'pila' + (pesc && ST.mazzo.length ? ' ok' : '');
   document.getElementById('pTallone').innerHTML =
-    '<div class="c" data-pesca="mazzo" style="width:' + B + 'px;height:' + (B * 1.5) + 'px">' +
+    '<div class="c" data-pesca="mazzo" style="width:' + B + 'px;height:' + (B * 1.4) + 'px">' +
     '<img src="' + CARTE + 'BACK.webp" alt=""></div>tallone ' + ST.mazzo.length;
   // Pila scarti: sempre tutta visibile, a righe sovrapposte, la più recente in fondo.
   const sc = document.getElementById('scartiFan');
