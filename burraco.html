@@ -66,6 +66,8 @@ button{font:inherit;font-weight:600;font-size:.92em;padding:.6em .95em;border-ra
 #msg{text-align:center;font-size:.8em;min-height:1.3em;padding:0 10px 6px;color:var(--oro);opacity:.9}
 #tavolo.cala{background:rgba(255,213,79,.07)}
 
+#voli{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
+#voli .c{position:absolute;margin:0!important;box-shadow:0 6px 16px rgba(0,0,0,.5)}
 #overlay{position:fixed;inset:0;background:rgba(6,26,18,.97);display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;z-index:20}
 #overlay.on{display:flex}
@@ -92,6 +94,8 @@ button{font:inherit;font-weight:600;font-size:.92em;padding:.6em .95em;border-ra
   <div id="mano"></div>
   <div id="msg"></div>
 </div>
+
+<div id="voli"></div>
 
 <div id="overlay">
   <h2 id="ovT"></h2>
@@ -307,26 +311,30 @@ const selCarte = () => mano().filter(c => SEL.includes(c.id));
 /* ---------- AZIONI ---------- */
 function pesca(dove){
   if(ST.fase !== 'pesca') return;
+  let voli;
   if(dove === 'mazzo'){
     if(!ST.mazzo.length) return fineTallone();
+    voli = catturaDaTallone(ST.mazzo[ST.mazzo.length - 1]);
     mano().push(ST.mazzo.pop());
   } else {
     if(!ST.scarti.length) return;
+    voli = cattura(ST.scarti, '#scartiFan');
     mano().push(...ST.scarti.splice(0));
   }
   ordina(mano());
   ST.fase = 'gioca';
-  SEL = []; render();
+  SEL = []; render(); anima(voli);
 }
 
 function cala(){
   const sel = selCarte();
   const m = valida(sel);
   if(!m) return msg('Combinazione non valida.');
+  const voli = cattura(sel, '#mano');
   m.id = ++ST.meldId;
   ST.melds[io()].push(m);
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
-  SEL = []; dopoCalata(); render();
+  SEL = []; dopoCalata(); render(); anima(voli);
 }
 
 function attacca(meldId){
@@ -337,9 +345,10 @@ function attacca(meldId){
   if(i < 0) return msg('Puoi attaccare solo alle tue combinazioni.');
   const nm = riattacca(arr[i], sel);
   if(!nm) return msg('Quelle carte non si attaccano lì.');
+  const voli = cattura(sel, '#mano');
   arr[i] = nm;
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
-  SEL = []; dopoCalata(); render();
+  SEL = []; dopoCalata(); render(); anima(voli);
 }
 
 // Sostituisce la pinella/jolly di una scala con la carta naturale corrispondente.
@@ -355,10 +364,11 @@ function sostituisci(meldId){
     : (c.r === m.rango);
   if(!ok) return msg('Quella carta non corrisponde al jolly.');
   const wild = m.carte[w];
+  const voli = cattura([c], '#mano').concat(cattura([wild], '#tavolo'));
   m.carte[w] = c; m.wild = -1;
   ST.mani[io()] = mano().filter(x => x.id !== c.id);
   mano().push(wild); ordina(mano());
-  SEL = []; render();
+  SEL = []; render(); anima(voli);
   msg('Jolly recuperato: ricalalo in questo turno.');
 }
 
@@ -373,6 +383,7 @@ function dopoCalata(){
 
 function haBurraco(p){ return ST.melds[p].some(isBurraco); }
 
+let _voliScarto = null;
 function scarta(){
   if(ST.fase !== 'gioca') return msg('Prima devi pescare.');
   const sel = selCarte();
@@ -384,9 +395,11 @@ function scarta(){
       return msg('Non puoi chiudere: ti manca un burraco.');
   }
   const c = sel[0];
+  const voli = cattura([c], '#mano');
   ST.scarti.push(c);
   ST.mani[io()] = mano().filter(x => x.id !== c.id);
   SEL = [];
+  _voliScarto = voli;
   if(mano().length === 0){
     if(!ST.pozzettoPreso[io()] && ST.pozzetti.length){
       ST.pozzettoPreso[io()] = true;
@@ -404,8 +417,13 @@ function passaTurno(nota){
   ST.turno = 1 - ST.turno;
   ST.fase = 'pesca';
   render();
-  overlay('Passa il telefono', (nota ? nota + '\n\n' : '') + 'Tocca a ' + NOMI_G[ST.turno] + '.',
-          'Sono ' + NOMI_G[ST.turno], () => { closeOverlay(); render(); });
+  if(_voliScarto){ anima(_voliScarto); _voliScarto = null; }
+  // l'overlay copre tutto: aspetta che lo scarto sia arrivato a destinazione
+  setTimeout(() => {
+    if(ST.finita) return;
+    overlay('Passa il telefono', (nota ? nota + '\n\n' : '') + 'Tocca a ' + NOMI_G[ST.turno] + '.',
+            'Sono ' + NOMI_G[ST.turno], () => { closeOverlay(); render(); });
+  }, finVolo(1));
 }
 
 function fineTallone(){
@@ -436,14 +454,16 @@ function chiudi(p){
   const a = conta(0), b = conta(1);
   ST.punti[0] += a.s; ST.punti[1] += b.s;
   render();
+  if(_voliScarto){ anima(_voliScarto); _voliScarto = null; }
+  const attesa = finVolo(1);
   const riga = (i, r) => NOMI_G[i] + ': ' + (r.s >= 0 ? '+' : '') + r.s +
       (r.det.length ? '  (' + r.det.join(', ') + ')' : '') + '\ntotale ' + ST.punti[i];
   const vinta = ST.punti.some(x => x >= CFG.PT_PARTITA);
-  overlay(p === null ? 'Tallone finito' : NOMI_G[p] + ' chiude',
+  setTimeout(() => overlay(p === null ? 'Tallone finito' : NOMI_G[p] + ' chiude',
     riga(0, a) + '\n\n' + riga(1, b) + (vinta ? '\n\nPartita vinta da ' +
       NOMI_G[ST.punti[0] > ST.punti[1] ? 0 : 1] + '.' : ''),
     vinta ? 'Nuova partita' : 'Smazzata successiva',
-    () => { nuovaPartita(vinta ? [0, 0] : ST.punti); closeOverlay(); render(); });
+    () => { nuovaPartita(vinta ? [0, 0] : ST.punti); closeOverlay(); render(); }), attesa);
 }
 
 /* ============================================================
@@ -637,6 +657,58 @@ function overlay(t, p, b, cb){
   document.getElementById('overlay').classList.add('on');
 }
 const closeOverlay = () => document.getElementById('overlay').classList.remove('on');
+
+/* ============================================================
+   ANIMAZIONI
+   Si fotografa dov'era la carta PRIMA della mutazione, si lascia che
+   render() la ridisegni dov'è finita, poi un clone vola dalla vecchia
+   posizione alla nuova mentre la carta vera resta invisibile.
+   ============================================================ */
+const DURATA = 300;
+
+function rett(el){
+  if(!el) return null;
+  const r = el.getBoundingClientRect();
+  return {x:r.left, y:r.top, w:r.width, h:r.height};
+}
+// Dove si trova adesso, nel DOM, la carta con questo id.
+function dov(id, dentro){
+  return document.querySelector((dentro ? dentro + ' ' : '') + '[data-id="' + id + '"]');
+}
+function cattura(carte, dentro){
+  return carte.map(c => ({id:c.id, da:rett(dov(c.id, dentro))})).filter(v => v.da);
+}
+// Vola dal tallone: la carta non esiste ancora nel DOM, la sorgente è il mazzo.
+function catturaDaTallone(carta){
+  const el = document.querySelector('#pTallone .c');
+  return el ? [{id:carta.id, da:rett(el)}] : [];
+}
+
+function anima(voli){
+  const cont = document.getElementById('voli');
+  voli.forEach((v, k) => {
+    const el = dov(v.id);
+    if(!el || !v.da) return;
+    const a = rett(el);
+    if(Math.abs(a.x - v.da.x) < 1 && Math.abs(a.y - v.da.y) < 1) return;   // non si è mossa
+    const g = el.cloneNode(true);
+    g.style.cssText = 'position:absolute;left:' + v.da.x + 'px;top:' + v.da.y + 'px;' +
+      'width:' + v.da.w + 'px;height:' + v.da.h + 'px;opacity:1;z-index:' + (40 + k);
+    cont.appendChild(g);
+    el.style.opacity = '0';
+    const rit = k * 14;
+    setTimeout(() => {
+      g.style.transition = 'transform ' + DURATA + 'ms cubic-bezier(.25,.9,.3,1), ' +
+                           'width ' + DURATA + 'ms, height ' + DURATA + 'ms';
+      g.style.transform = 'translate(' + (a.x - v.da.x) + 'px,' + (a.y - v.da.y) + 'px)';
+      g.style.width = a.w + 'px';
+      g.style.height = a.h + 'px';
+    }, 20 + rit);
+    setTimeout(() => { g.remove(); if(el.isConnected) el.style.opacity = ''; },
+               DURATA + rit + 60);
+  });
+}
+const finVolo = n => DURATA + (n || 1) * 14 + 80;
 
 /* ---------- EVENTI ---------- */
 function bind(){

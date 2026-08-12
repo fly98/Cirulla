@@ -28,13 +28,15 @@ NOMI = {1: 'A', 11: 'J', 12: 'Q', 13: 'K'}
 def rk(r): return NOMI.get(r, str(r))
 
 # ---- geometria (frazioni della carta) ----
-PAN = (0.415, 0.285, 0.95, 0.95)       # pannello avorio: x0,y0,x1,y1
-RANK_C = (0.225, 0.175)                # centro del valore grande
-RANK_PX = 0.32                         # altezza del valore
-SUIT_BIG_C = (0.225, 0.44)             # centro del seme grande
-SUIT_BIG_PX = 0.26
-SUIT_SM_C = (0.56, 0.145)              # seme piccolo in alto
-SUIT_SM_PX = 0.135
+# Valori calibrati misurando il 9 di fiori del mazzo di riferimento:
+# valore alto 0,251 H · seme grande 0,211 H · seme piccolo 0,099 H · pannello da (0,375; 0,243).
+PAN = (0.375, 0.243, 0.952, 0.950)     # pannello avorio: x0,y0,x1,y1
+RANK_C = (0.184, 0.156)                # centro del valore grande
+RANK_PX = 0.335
+SUIT_BIG_C = (0.186, 0.413)            # centro del seme grande
+SUIT_BIG_PX = 0.216
+SUIT_SM_C = (0.461, 0.093)             # seme piccolo in alto
+SUIT_SM_PX = 0.101
 
 
 def testo(d, xy, s, px, col, ancora='mm'):
@@ -134,7 +136,7 @@ def jolly(rosso):
     # colonna: "JLY" e una stella
     d.text((RANK_C[0] * W, RANK_C[1] * H), '\u2605', font=font(.30 * H),
            fill=col + (255,), anchor='mm')
-    d.text((SUIT_BIG_C[0] * W, SUIT_BIG_C[1] * H), 'JOLLY', font=font(.085 * H),
+    d.text((SUIT_BIG_C[0] * W, SUIT_BIG_C[1] * H), 'JOLLY', font=font(.066 * H),
            fill=col + (255,), anchor='mm')
     d.text((SUIT_SM_C[0] * W, SUIT_SM_C[1] * H), '\u2605', font=font(.13 * H),
            fill=col + (255,), anchor='mm')
