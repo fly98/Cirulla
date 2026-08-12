@@ -63,6 +63,7 @@ header b{color:var(--oro)}
 #mano{display:flex;justify-content:center;align-items:flex-end;padding:0 10px 6px;overflow:visible}
 button{font:inherit;font-weight:600;font-size:.92em;padding:.6em .95em;border-radius:9px;border:0;
   background:var(--oro);color:#1a1a1a}
+button.g{background:rgba(255,255,255,.16);color:#fff}
 #msg{text-align:center;font-size:.8em;min-height:1.3em;padding:0 10px 6px;color:var(--oro);opacity:.9}
 #tavolo.cala{background:rgba(255,213,79,.07)}
 
@@ -101,6 +102,7 @@ button{font:inherit;font-weight:600;font-size:.92em;padding:.6em .95em;border-ra
   <h2 id="ovT"></h2>
   <p id="ovP"></p>
   <button id="ovB"></button>
+  <button class="g" id="ovB2"></button>
 </div>
 
 <script>
@@ -278,8 +280,25 @@ const isBurraco = m => m.carte.length >= CFG.BURRACO_MIN;
 const bonusBurraco = m => !isBurraco(m) ? 0 : (m.wild < 0 ? CFG.PT_PULITO : CFG.PT_SPORCO);
 
 /* ============================================================
-   STATO
+   STATO E SALVATAGGIO
    ============================================================ */
+const CHIAVE = 'burraco_stato_v1';
+
+function salva(){
+  if(!ST) return;
+  try{
+    localStorage.setItem(CHIAVE, JSON.stringify({ST, uid:_uid, v:1}));
+  }catch(e){ /* spazio pieno o navigazione privata: si gioca lo stesso */ }
+}
+function ripristina(){
+  try{
+    const d = JSON.parse(localStorage.getItem(CHIAVE));
+    return (d && d.v === 1 && d.ST && d.ST.mani) ? d : null;
+  }catch(e){ return null; }
+}
+function scordaPartita(){
+  try{ localStorage.removeItem(CHIAVE); }catch(e){}
+}
 let ST = null, SEL = [];
 
 function nuovaPartita(punti){
@@ -298,6 +317,7 @@ function nuovaPartita(punti){
   ST.mazzo = m;
   ST.mani.forEach(ordina);
   SEL = [];
+  salva();
 }
 
 function ordina(h){
@@ -618,6 +638,7 @@ function render(){
     (ST.fase === 'gioca' && SEL.length >= 3 && !ST.finita) ? 'cala' : '';
   suggerimento();
 
+  salva();
   ventaglio(document.getElementById('mano'), B, 0.50);
   const tav = document.getElementById('tavolo');
   const maxCol = Math.max(80, tav.clientHeight - 42);
@@ -649,11 +670,14 @@ function suggerimento(){
   document.getElementById('msg').textContent = t;
 }
 
-function overlay(t, p, b, cb){
+function overlay(t, p, b, cb, b2, cb2){
   document.getElementById('ovT').textContent = t;
   document.getElementById('ovP').textContent = p;
   document.getElementById('ovB').textContent = b;
   document.getElementById('ovB').onclick = cb;
+  const e2 = document.getElementById('ovB2');
+  e2.style.display = b2 ? '' : 'none';
+  if(b2){ e2.textContent = b2; e2.onclick = cb2; }
   document.getElementById('overlay').classList.add('on');
 }
 const closeOverlay = () => document.getElementById('overlay').classList.remove('on');
@@ -664,7 +688,10 @@ const closeOverlay = () => document.getElementById('overlay').classList.remove('
    render() la ridisegni dov'è finita, poi un clone vola dalla vecchia
    posizione alla nuova mentre la carta vera resta invisibile.
    ============================================================ */
-const DURATA = 300;
+const DURATA = 440;
+// Curva molto sbilanciata: parte svelta e passa metà del tempo ad accostarsi
+// alla posizione finale. È il "rallentamento sulla sistemazione".
+const CURVA = 'cubic-bezier(.11,.75,.16,1)';
 
 function rett(el){
   if(!el) return null;
@@ -696,19 +723,20 @@ function anima(voli){
       'width:' + v.da.w + 'px;height:' + v.da.h + 'px;opacity:1;z-index:' + (40 + k);
     cont.appendChild(g);
     el.style.opacity = '0';
-    const rit = k * 14;
+    const rit = k * 18;
     setTimeout(() => {
-      g.style.transition = 'transform ' + DURATA + 'ms cubic-bezier(.25,.9,.3,1), ' +
-                           'width ' + DURATA + 'ms, height ' + DURATA + 'ms';
+      g.style.transition = 'transform ' + DURATA + 'ms ' + CURVA + ', ' +
+                           'width ' + DURATA + 'ms ' + CURVA + ', ' +
+                           'height ' + DURATA + 'ms ' + CURVA;
       g.style.transform = 'translate(' + (a.x - v.da.x) + 'px,' + (a.y - v.da.y) + 'px)';
       g.style.width = a.w + 'px';
       g.style.height = a.h + 'px';
     }, 20 + rit);
     setTimeout(() => { g.remove(); if(el.isConnected) el.style.opacity = ''; },
-               DURATA + rit + 60);
+               DURATA + rit + 70);
   });
 }
-const finVolo = n => DURATA + (n || 1) * 14 + 80;
+const finVolo = n => DURATA + (n || 1) * 18 + 90;
 
 /* ---------- EVENTI ---------- */
 function bind(){
@@ -748,10 +776,28 @@ addEventListener('resize', () => { if(ST) render(); });
 addEventListener('orientationchange', () => setTimeout(() => { if(ST) render(); }, 250));
 
 precarica();
-nuovaPartita();
-render();
-overlay('Burraco', 'Prototipo hot-seat: si gioca in due sullo stesso telefono.\nNiente CPU, niente online (per ora).\n\nInizia ' + NOMI_G[0] + '.',
-        'Comincia', () => { closeOverlay(); render(); });
+
+const salvata = ripristina();
+if(salvata && !salvata.ST.finita){
+  ST = salvata.ST; _uid = salvata.uid || _uid; SEL = [];
+  render();
+  const q = ST.mani[0].length + ST.mani[1].length;
+  overlay('Partita in corso',
+    'Tocca a ' + NOMI_G[ST.turno] + ' (' + (ST.fase === 'pesca' ? 'deve pescare' : 'sta giocando') + ').\n' +
+    'Punti ' + NOMI_G[0] + ' ' + ST.punti[0] + ' \u00b7 ' + NOMI_G[1] + ' ' + ST.punti[1] +
+    ' \u00b7 tallone ' + ST.mazzo.length + ' \u00b7 ' + q + ' carte in mano.',
+    'Riprendi', () => { closeOverlay(); render(); },
+    'Ricomincia da capo', () => { scordaPartita(); nuovaPartita(); closeOverlay(); render(); });
+}else{
+  // smazzata gia' conteggiata: si tiene il punteggio e si ridistribuisce
+  nuovaPartita(salvata && salvata.ST.finita ? salvata.ST.punti : null);
+  render();
+  overlay('Burraco',
+    (salvata ? 'Nuova smazzata, punteggio mantenuto.\n\n' :
+               'Prototipo hot-seat: si gioca in due sullo stesso telefono.\nNiente CPU, niente online (per ora).\n\n') +
+    'Inizia ' + NOMI_G[0] + '.',
+    'Comincia', () => { closeOverlay(); render(); });
+}
 </script>
 </body>
 </html>
