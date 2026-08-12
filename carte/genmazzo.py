@@ -28,32 +28,63 @@ NOMI = {1: 'A', 11: 'J', 12: 'Q', 13: 'K'}
 def rk(r): return NOMI.get(r, str(r))
 
 # ---- geometria (frazioni della carta) ----
-# Valori calibrati misurando il 9 di fiori del mazzo di riferimento:
-# valore alto 0,251 H · seme grande 0,211 H · seme piccolo 0,099 H · pannello da (0,375; 0,243).
+# Valori calibrati misurando il 9 di fiori del mazzo di riferimento.
+# ATTENZIONE: sono altezze di INCHIOSTRO, non dimensioni di font. A parita' di
+# font DejaVu la J e' alta 186 e la K 146 (27% di differenza) e i digit ballano
+# tra 146 e 151: disegnare per dimensione font da valori visibilmente diversi.
+# Ogni glifo viene quindi misurato e riscalato sulla propria altezza reale.
 PAN = (0.375, 0.243, 0.952, 0.950)     # pannello avorio: x0,y0,x1,y1
-RANK_C = (0.184, 0.156)                # centro del valore grande
-# Il valore misurato sul riferimento sarebbe 0.335, ma a schermo risulta pesante:
-# ridotto del 12% a occhio. I semi restano sui valori misurati.
-RANK_PX = 0.295
+
+RANK_CAP  = 0.223                      # altezza del valore sopra la linea di base, in frazione di H
+RANK_LEFT = 0.070                      # bordo sinistro dell'inchiostro, in frazione di W
+RANK_TOP  = 0.045                      # bordo superiore dell'inchiostro, in frazione di H
+RANK_MAXW = 0.300                      # oltre questa larghezza il valore viene stretto (il "10")
+
 SUIT_BIG_C = (0.186, 0.413)            # centro del seme grande
-SUIT_BIG_PX = 0.216
+SUIT_BIG_H = 0.211                     # altezza inchiostro
 SUIT_SM_C = (0.461, 0.093)             # seme piccolo in alto
-SUIT_SM_PX = 0.101
+SUIT_SM_H = 0.099
 
 
-def testo(d, xy, s, px, col, ancora='mm'):
-    d.text((xy[0] * W, xy[1] * H), s, font=font(px * H), fill=col, anchor=ancora)
+def _misura(txt, size):
+    """Riquadro dell'inchiostro e posizione della linea di base."""
+    pad = int(size * 1.3)
+    tela = Image.new('L', (int(size * 3) + 2 * pad, int(size * 3) + 2 * pad), 0)
+    base = pad + size * 1.5
+    ImageDraw.Draw(tela).text((pad, base), txt, font=font(size), fill=255, anchor='ls')
+    return tela.getbbox(), base
+
+
+def glifo(txt, alt_voluta, col, sopra_base=True, larg_max=None):
+    """Immagine del glifo riscalata perche' abbia esattamente l'altezza voluta.
+
+    `sopra_base=True` misura solo la parte sopra la linea di base: serve per i
+    valori, altrimenti la coda della J e della Q li rimpicciolisce rispetto agli
+    altri. `larg_max` stringe orizzontalmente (serve solo al "10").
+    """
+    size = alt_voluta / 0.72
+    for _ in range(10):
+        bb, base = _misura(txt, size)
+        alt = (base - bb[1]) if sopra_base else (bb[3] - bb[1])
+        if alt <= 0 or abs(alt - alt_voluta) < 0.4:
+            break
+        size *= alt_voluta / alt
+    pad = int(size * 1.3)
+    tela = Image.new('RGBA', (int(size * 3) + 2 * pad, int(size * 3) + 2 * pad), (0, 0, 0, 0))
+    ImageDraw.Draw(tela).text((pad, pad + size * 1.5), txt, font=font(size),
+                              fill=col + (255,), anchor='ls')
+    g = tela.crop(tela.getbbox())
+    if larg_max and g.width > larg_max:
+        g = g.resize((max(1, int(larg_max)), g.height), Image.LANCZOS)
+    return g
 
 
 def pip(im, x, y, alt, seme, col, giu=False):
-    """Disegna un seme centrato in (x,y), alto `alt` px, eventualmente capovolto."""
-    f = font(alt * 1.34)
-    t = Image.new('RGBA', (int(alt * 2.2), int(alt * 2.2)), (0, 0, 0, 0))
-    ImageDraw.Draw(t).text((t.width / 2, t.height / 2), SEMI[seme], font=f,
-                           fill=col + (255,), anchor='mm')
+    """Seme centrato in (x,y), alto esattamente `alt` px, eventualmente capovolto."""
+    g = glifo(SEMI[seme], alt, col, sopra_base=False)
     if giu:
-        t = t.rotate(180)
-    im.alpha_composite(t, (int(x - t.width / 2), int(y - t.height / 2)))
+        g = g.rotate(180)
+    im.alpha_composite(g, (int(x - g.width / 2), int(y - g.height / 2)))
 
 
 # Disposizione dei pips dentro il pannello, in coordinate relative (0..1).
@@ -99,13 +130,13 @@ def cornice(r, s):
     d.rectangle([px0, py0, px1, py1], fill=AVORIO + (255,),
                 outline=BORDO_PANNELLO + (255,), width=max(1, int(.9 * S)))
 
-    # colonna sinistra: valore grande, seme grande sotto
-    px = RANK_PX * (0.74 if r == 10 else 1.0)          # "10" ha due cifre
-    # la J ha una discendente: rimpicciolita e alzata, altrimenti tocca il seme sotto
-    c_rank = RANK_C if r != 11 else (RANK_C[0], RANK_C[1] - 0.022)
-    testo(d, c_rank, rk(r), px * (0.90 if r == 11 else 1.0), col + (255,))
-    pip(im, SUIT_BIG_C[0] * W, SUIT_BIG_C[1] * H, SUIT_BIG_PX * H, s, col)
-    pip(im, SUIT_SM_C[0] * W, SUIT_SM_C[1] * H, SUIT_SM_PX * H, s, col)
+    # colonna sinistra: valore grande ancorato in alto a sinistra, seme grande sotto.
+    # Ancoraggio per riquadro d'inchiostro: tutti i valori hanno identica altezza
+    # e identica distanza da bordo e simboli, qualunque sia il glifo.
+    g = glifo(rk(r), RANK_CAP * H, col, larg_max=RANK_MAXW * W)
+    im.alpha_composite(g, (int(RANK_LEFT * W), int(RANK_TOP * H)))
+    pip(im, SUIT_BIG_C[0] * W, SUIT_BIG_C[1] * H, SUIT_BIG_H * H, s, col)
+    pip(im, SUIT_SM_C[0] * W, SUIT_SM_C[1] * H, SUIT_SM_H * H, s, col)
 
     # contenuto del pannello
     if r in (11, 12, 13):
@@ -116,7 +147,7 @@ def cornice(r, s):
         im.alpha_composite(fig, (int(px0 + (px1 - px0 - fig.width) / 2),
                                  int(py0 + (py1 - py0 - fig.height) / 2)))
     else:
-        alt = (py1 - py0) * (0.30 if r == 1 else 0.155)
+        alt = (py1 - py0) * (0.30 if r == 1 else 0.150)
         for spec in LAYOUT[r]:
             cx, ry = spec[0], spec[1]
             scala = spec[2] if len(spec) > 2 else 1.0
@@ -136,12 +167,14 @@ def jolly(rosso):
     d.rectangle([px0, py0, px1, py1], fill=AVORIO + (255,),
                 outline=BORDO_PANNELLO + (255,), width=max(1, int(.9 * S)))
     # colonna: "JLY" e una stella
-    d.text((RANK_C[0] * W, RANK_C[1] * H), '\u2605', font=font(.30 * H),
-           fill=col + (255,), anchor='mm')
-    d.text((SUIT_BIG_C[0] * W, SUIT_BIG_C[1] * H), 'JOLLY', font=font(.066 * H),
-           fill=col + (255,), anchor='mm')
-    d.text((SUIT_SM_C[0] * W, SUIT_SM_C[1] * H), '\u2605', font=font(.13 * H),
-           fill=col + (255,), anchor='mm')
+    g = glifo('\u2605', RANK_CAP * H, col, sopra_base=False)
+    im.alpha_composite(g, (int(RANK_LEFT * W), int(RANK_TOP * H)))
+    t = glifo('JOLLY', .048 * H, col, sopra_base=False, larg_max=RANK_MAXW * W)
+    im.alpha_composite(t, (int(SUIT_BIG_C[0] * W - t.width / 2),
+                           int(SUIT_BIG_C[1] * H - t.height / 2)))
+    p = glifo('\u2605', SUIT_SM_H * H, col, sopra_base=False)
+    im.alpha_composite(p, (int(SUIT_SM_C[0] * W - p.width / 2),
+                           int(SUIT_SM_C[1] * H - p.height / 2)))
     # pannello: jester stilizzato
     cx, cy = (px0 + px1) / 2, (py0 + py1) / 2
     rr = (px1 - px0) * .30
