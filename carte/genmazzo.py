@@ -32,7 +32,9 @@ def rk(r): return NOMI.get(r, str(r))
 # valore alto 0,251 H · seme grande 0,211 H · seme piccolo 0,099 H · pannello da (0,375; 0,243).
 PAN = (0.375, 0.243, 0.952, 0.950)     # pannello avorio: x0,y0,x1,y1
 RANK_C = (0.184, 0.156)                # centro del valore grande
-RANK_PX = 0.335
+# Il valore misurato sul riferimento sarebbe 0.335, ma a schermo risulta pesante:
+# ridotto del 12% a occhio. I semi restano sui valori misurati.
+RANK_PX = 0.295
 SUIT_BIG_C = (0.186, 0.413)            # centro del seme grande
 SUIT_BIG_PX = 0.216
 SUIT_SM_C = (0.461, 0.093)             # seme piccolo in alto
