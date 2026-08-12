@@ -25,12 +25,6 @@ body{
   background:var(--carta);box-shadow:0 1px 3px rgba(0,0,0,.45);transition:transform .12s;
 }
 .c img{width:100%;height:100%;display:block;border-radius:5px;pointer-events:none}
-.c .idx{position:absolute;top:0;left:0;width:47%;height:25%;background:#fff;
-  border-radius:5px 0 9px 0;display:flex;align-items:center;justify-content:center;
-  font-weight:800;line-height:1;color:var(--nero);overflow:hidden;letter-spacing:-.05em}
-.c .idx.rosso{color:var(--rosso)}
-.c .idx b{font-size:.84em}
-.c .idx i{font-size:.72em;font-style:normal;margin-left:.06em}
 .c.sel{transform:translateY(calc(-1 * var(--lift,16px)));
   box-shadow:0 0 0 3px var(--sel),0 5px 12px rgba(0,0,0,.55)}
 .c.wild::after{content:"";position:absolute;inset:0;border:2px dashed var(--jolly);border-radius:5px;opacity:.7}
@@ -467,13 +461,9 @@ function cardHTML(c, opt){
   if(opt.mini) cls.push('mini');
   if(opt.sel) cls.push('sel');
   if(opt.wild) cls.push('wild');
-  const rosso = (c.s === 'h' || c.s === 'd' || c.s === 'jr') ? ' rosso' : '';
-  const idx = isJolly(c)
-    ? '<span class="idx' + rosso + '"><b>JLY</b></span>'
-    : '<span class="idx' + rosso + '"><b>' + rk(c.r) + '</b><i>' + SIMB[c.s] + '</i></span>';
   return '<div class="' + cls.join(' ') + '" data-id="' + c.id + '">' +
     '<img src="' + CARTE + fileCarta(c) + '.webp" alt="' + fileCarta(c) + '" draggable="false">' +
-    idx + '</div>';
+    '</div>';
 }
 // Precarico il mazzo: evita il pop-in delle figure alla prima comparsa.
 function precarica(){
