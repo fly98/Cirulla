@@ -322,7 +322,11 @@ function valida(carte){
   return costruisciGruppo(carte) || costruisciScala(carte) || null;
 }
 
-// Riattacca: ricostruisce la combinazione dall'unione. Rispetta MAX_WILD.
+/* Riattacca: ricostruisce la combinazione dall'unione delle carte.
+   Da qui discende il comportamento corretto della pinella: se si porta la carta
+   naturale che la matta stava rappresentando, la matta NON torna in mano (non e'
+   una regola del burraco) ma viene ricollocata a un'estremita' della scala,
+   allungandola. `costruisciScala` prova prima la coda, poi la testa. */
 function riattacca(meld, aggiunte){
   const tutte = meld.carte.concat(aggiunte);
   const m = meld.tipo === 'gruppo'
@@ -457,34 +461,6 @@ function attacca(meldId){
   arr[i] = nm;
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
   SEL = []; dopoCalata(); render(); anima(voli);
-}
-
-// Vero solo se la carta e' esattamente quella che il jolly sta rappresentando.
-// Serve a distinguere "sostituisco il jolly" da "attacco una carta qualsiasi".
-function combaciaJolly(m, c){
-  if(!m || m.wild < 0 || !c) return false;
-  return m.tipo === 'scala'
-    ? (c.s === m.seme && (c.r === m.vals[m.wild] ||
-        (c.r === 1 && (m.vals[m.wild] === 1 || m.vals[m.wild] === 14))))
-    : (c.r === m.rango);
-}
-
-// Sostituisce la pinella/jolly di una scala con la carta naturale corrispondente.
-function sostituisci(meldId){
-  const sel = selCarte();
-  if(sel.length !== 1) return msg('Seleziona la carta naturale che rimpiazza il jolly.');
-  const arr = ST.melds[io()];
-  const i = arr.findIndex(x => x.id === meldId);
-  if(i < 0 || arr[i].wild < 0) return msg('Lì non c\'è nessun jolly da sostituire.');
-  const m = arr[i], w = m.wild, c = sel[0];
-  if(!combaciaJolly(m, c)) return msg('Quella carta non corrisponde al jolly.');
-  const wild = m.carte[w];
-  const voli = cattura([c], '#mano').concat(cattura([wild], '#tavolo'));
-  m.carte[w] = c; m.wild = -1;
-  ST.mani[io()] = mano().filter(x => x.id !== c.id);
-  mano().push(wild); ordina(mano());
-  SEL = []; render(); anima(voli);
-  msg('Jolly recuperato: ricalalo in questo turno.');
 }
 
 function dopoCalata(){
@@ -1018,7 +994,6 @@ function mpMsg(m){
     if(m.a === 'pesca')            pesca(m.dove);
     else if(m.a === 'cala')        cala();
     else if(m.a === 'attacca')     attacca(m.meld);
-    else if(m.a === 'sostituisci') sostituisci(m.meld);
     else if(m.a === 'scarta')      scarta();
     SEL = miaSel;
     render();
@@ -1219,7 +1194,6 @@ function uiPesca(dove){       if(consenti()){ guest() ? mpMossa('pesca', {dove})
 function uiCala(){            if(consenti()){ guest() ? mpMossa('cala') : cala(); } }
 function uiScarta(){          if(consenti()){ guest() ? mpMossa('scarta') : scarta(); } }
 function uiAttacca(id){       if(consenti()){ guest() ? mpMossa('attacca', {meld:id}) : attacca(id); } }
-function uiSostituisci(id){   if(consenti()){ guest() ? mpMossa('sostituisci', {meld:id}) : sostituisci(id); } }
 
 /* ---------- EVENTI ---------- */
 function bind(){
@@ -1247,10 +1221,6 @@ function bind(){
     ev.stopPropagation();                       // non deve valere anche come "cala"
     const id = +el.dataset.meld;
     if(!SEL.length) return;
-    if(SEL.length === 1){
-      const m = ST.melds[mio()].find(x => x.id === id);
-      if(combaciaJolly(m, selCarte()[0])) return uiSostituisci(id);
-    }
     uiAttacca(id);
   });
 }
