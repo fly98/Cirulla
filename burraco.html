@@ -95,7 +95,10 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* In basso a sinistra, dentro il flusso: niente position:fixed, che su iPad
    nell'angolo in alto a destra finisce nell'area dei gesti di sistema. */
-#btnMenu{flex:0 0 auto;align-self:flex-end;width:46px;height:44px;padding:0;
+#menuBox{flex:0 0 auto;align-self:flex-end;text-align:center}
+#ver{font-size:9px;opacity:.5;margin-top:2px;white-space:nowrap}
+#ver.vecchia{opacity:1;color:var(--oro);font-weight:700}
+#btnMenu{width:46px;height:44px;padding:0;
   font-size:20px;line-height:1;background:rgba(255,255,255,.15);color:#fff;
   border-radius:11px;margin-bottom:2px}
 #modal{position:fixed;inset:0;background:rgba(6,26,18,.94);z-index:60;display:none;
@@ -129,7 +132,10 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 <div id="tavolo"></div>
 
 <div id="centro">
-  <button id="btnMenu" aria-label="Menu">≡</button>
+  <div id="menuBox">
+    <button id="btnMenu" aria-label="Menu">≡</button>
+    <div id="ver"></div>
+  </div>
   <div class="pila" id="pTallone"></div>
   <div id="scarti"><div class="lab" id="scartiLab"></div><div id="scartiFan"></div></div>
 </div>
@@ -156,6 +162,10 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
    Motore regole + UI. Nessuna CPU: due giocatori, stesso device.
    Il multiplayer online si innesta dopo su questa stessa UI.
    ============================================================ */
+
+/* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
+   d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
+const VERSIONE = '13ago-1';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -1061,9 +1071,40 @@ function chiudiModale(){
   if(MP_POLL){ clearInterval(MP_POLL); MP_POLL = null; }
 }
 
+// Chiede al server che versione c'e' adesso, saltando ogni cache.
+async function versionePubblicata(){
+  const r = await fetch(location.pathname + '?nc=' + Date.now(), {cache:'no-store'});
+  const t = await r.text();
+  const m = t.match(/VERSIONE = '([^']+)'/);
+  return m ? m[1] : null;
+}
+async function controllaVersione(){
+  try{
+    const v = await versionePubblicata();
+    const e = document.getElementById('ver');
+    if(v && v !== VERSIONE){
+      e.textContent = VERSIONE + ' \u2192 ' + v;
+      e.classList.add('vecchia');
+      msg('C\'\u00e8 la versione ' + v + ': menu \u2192 Aggiorna.');
+    }
+  }catch(e){}
+}
+// iOS tiene in cache la pagina delle app installate: l'unico modo sicuro e'
+// ripartire con un indirizzo diverso, svuotando prima quel poco che c'e'.
+async function aggiornaApp(){
+  try{
+    if(window.caches){
+      const k = await caches.keys();
+      await Promise.all(k.map(x => caches.delete(x)));
+    }
+  }catch(e){}
+  location.replace(location.pathname + '?v=' + Date.now());
+}
+
 function apriMenu(){
   const s = mpSessione();
-  modale('<h2>Burraco</h2>' +
+  modale('<h2>Burraco</h2><p>versione ' + VERSIONE + '</p>' +
+    '<button class="g" onclick="aggiornaApp()">Aggiorna all\'ultima versione</button>' +
     (MP ? '<p>Stanza <b>' + MP.code + '</b> \u00b7 ' +
             (MP.avversarioOn ? 'avversario collegato' : 'avversario assente') + '</p>' : '') +
     '<button onclick="apriLobby()">Gioca online</button>' +
@@ -1230,6 +1271,8 @@ addEventListener('resize', () => { if(ST) render(); });
 addEventListener('orientationchange', () => setTimeout(() => { if(ST) render(); }, 250));
 
 precarica();
+document.getElementById('ver').textContent = VERSIONE;
+setTimeout(controllaVersione, 1200);
 
 (() => {
   const b = document.getElementById('btnMenu');
