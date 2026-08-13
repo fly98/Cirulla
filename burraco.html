@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-11';
+const VERSIONE = '13ago-15';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -1496,7 +1496,11 @@ function cpuPesca(){
     const conPila = scegliCalate(ST.mani[1].concat(ST.scarti));
     // le carte della pila che restano inutilizzate sono zavorra: pesano in negativo
     const zavorra = conPila.resto.reduce((t, c) => t + valCarta(c), 0) * 0.5;
-    prendiPila = (valoreCalate(conPila) - senza - zavorra) > (CPU.livello === 'facile' ? 60 : 15);
+    /* Soglia tarata provando 0, 15, 40, 80, 150 e 400: prendere la pila con
+       leggerezza carica la mano di zavorra e allunga la partita a vantaggio
+       dell'avversario. Meglio prenderla solo quando rende parecchio. */
+    const soglia = CPU.livello === 'facile' ? 200 : 80;
+    prendiPila = (valoreCalate(conPila) - senza - zavorra) > soglia;
   }
   const dalla = prendiPila && ST.scarti.length ? 'scarti' : 'mazzo';
   conFoto(() => pesca(dalla));
@@ -1504,73 +1508,101 @@ function cpuPesca(){
 }
 
 /* --- attacchi e calate --- */
-function cpuAttacca(){
+// Un solo attacco per volta: torna true se ne ha fatto uno.
+function cpuAttaccaUno(){
   for(const m of ST.melds[1].slice()){
     for(const c of ST.mani[1].slice()){
-      if(ST.mani[1].length <= 1) return;
       const nm = riattacca(m, [c]);
       if(!nm) continue;
       if(vicoloCieco(ST.mani[1].filter(x => x.id !== c.id),
                      haBurraco(1) || isBurraco(nm))) continue;
-      // al livello alto la matta non si spreca su una combinazione qualsiasi
-      if(CPU.livello === 'difficile' && puoWild(c) && !isBurraco(nm)) continue;
+      /* Al livello alto la matta si tiene, ma solo finche' ce n'e' una sola:
+         tenerle tutte fa finire la mano piena di matte inscartabili, ed era la
+         ragione per cui "difficile" giocava peggio di "medio". */
+      if(CPU.livello === 'difficile' && puoWild(c) && !isBurraco(nm) &&
+         ST.mani[1].filter(puoWild).length < 2) continue;
       SEL = [c.id];
       conFoto(() => attacca(m.id));
       SEL = [];
-      return setTimeout(cpuAttacca, 260);
+      return true;
     }
   }
+  return false;
 }
 
-function cpuCala(){
-  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
-  cpuAttacca();
+// Una sola calata per volta.
+function cpuCalaUna(){
   const {scelte} = scegliCalate(ST.mani[1]);
   for(const m of scelte){
     const ids = m.carte.map(c => c.id);
     const resto = ST.mani[1].filter(c => !ids.includes(c.id));
     if(vicoloCieco(resto, haBurraco(1) || isBurraco(m))) continue;
-    // al livello alto le combinazioni corte si tengono in mano: valgono di piu'
-    // se diventano burraco, e calarle presto regala attacchi all'avversario
-    if(CPU.livello === 'difficile' && m.carte.length < 4 && ST.mazzo.length > 25 &&
-       !ST.melds[1].length) continue;
     SEL = ids;
     conFoto(() => cala());
     SEL = [];
+    return true;
   }
-  cpuAttacca();
-  setTimeout(cpuScarta, 900);
+  return false;
 }
 
-/* --- scarto: la carta meno utile a me e meno utile a lui --- */
+/* Il turno del computer e' una catena: una mossa, una pausa, si ricontrolla.
+   Spezzettarlo in chiamate parallele faceva finire pezzi del suo turno dentro
+   quello dell'avversario. Ogni passo ricontrolla di essere ancora di turno. */
+function cpuPasso(){
+  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
+  if(cpuAttaccaUno()) return setTimeout(cpuPasso, 320);
+  if(cpuCalaUna())    return setTimeout(cpuPasso, 320);
+  setTimeout(cpuScarta, 520);
+}
+
+/* --- scarto ---
+   Quanto mi serve una carta: conta le altre in mano con cui potrebbe legare.
+   Le matte non entrano nel conto perche' non si scartano comunque. */
 function utilita(c, mano){
   let u = 0;
   for(const x of mano){
-    if(x.id === c.id) continue;
-    if(x.r === c.r) u += 3;
-    if(x.s === c.s && Math.abs(x.r - c.r) <= 2) u += 2;
+    if(x.id === c.id || puoWild(x)) continue;
+    if(x.r === c.r) u += 4;                      // verso un tris
+    if(x.s === c.s){
+      const d = Math.abs(x.r - c.r);
+      if(d === 1) u += 5;                        // adiacente: quasi una scala
+      else if(d === 2) u += 3;                   // a un buco di distanza
+    }
   }
-  if(puoWild(c)) u += 20;                       // le matte non si buttano
   return u;
 }
-function serveAllAvversario(c){
-  return ST.melds[0].some(m => !!riattacca(m, [c]));
+// Quanto la carta fa comodo a lui: attaccabile subito, o vicina a cio' che ha in tavola.
+function pericolo(c){
+  let p = 0;
+  for(const m of ST.melds[0]){
+    if(riattacca(m, [c])) p += 12;
+    if(m.tipo === 'gruppo' && m.rango === c.r) p += 5;
+    if(m.tipo === 'scala' && m.seme === c.s) p += 2;
+  }
+  return p;
 }
+const serveAllAvversario = c => ST.melds[0].some(m => !!riattacca(m, [c]));
 
 function cpuScarta(){
   if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
   const h = ST.mani[1];
-  const ord = h.slice().sort((a, b) => {
-    const ua = utilita(a, h), ub = utilita(b, h);
-    if(ua !== ub) return ua - ub;
-    if(CPU.livello !== 'facile'){
-      const sa = serveAllAvversario(a), sb = serveAllAvversario(b);
-      if(sa !== sb) return sa ? 1 : -1;          // meglio non regalargli attacchi
-    }
-    return valCarta(b) - valCarta(a);            // via i punti alti: pesano se chiude lui
-  });
-  if(CPU.livello === 'facile') ord.sort(() => Math.random() - 0.5);
-  for(const c of ord){
+  /* Divieti, non punteggi: con la mano piena una carta ben collegata superava
+     il bonus della matta, ed e' cosi' che il computer finiva per buttare i jolly.
+     Si scende di gradino solo quando il gradino sopra e' vuoto. */
+  let lista = h.filter(c => !puoWild(c) && !serveAllAvversario(c));
+  if(!lista.length) lista = h.filter(c => !puoWild(c));   // meglio servirlo che buttare una matta
+  if(!lista.length) lista = h.slice();                    // solo matte: non c'e' scelta
+  if(CPU.livello === 'facile'){
+    lista = h.slice();
+    lista.sort(() => Math.random() - 0.5);
+  }else{
+    lista.sort((a, b) => {
+      const va = utilita(a, h) + 3 * pericolo(a), vb = utilita(b, h) + 3 * pericolo(b);
+      if(va !== vb) return va - vb;
+      return valCarta(b) - valCarta(a);          // via i punti alti: pesano se chiude lui
+    });
+  }
+  for(const c of lista.concat(h)){               // in coda tutte, come ultima risorsa
     const prima = ST.scarti.length;
     SEL = [c.id];
     conFoto(() => scarta());
@@ -1583,7 +1615,7 @@ function cpuScarta(){
 function cpuGioca(){
   if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
   cpuPesca();
-  setTimeout(cpuCala, 800);
+  setTimeout(cpuPasso, 750);
 }
 
 function avviaCpu(livello){
