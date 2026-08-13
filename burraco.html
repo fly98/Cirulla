@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-6';
+const VERSIONE = '13ago-9';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -208,6 +208,7 @@ let NOMI_G = ['Filippo','Mena'];
 // Nell'intestazione i nomi lunghi mandavano la riga a capo.
 const breve = n => (n || '').length > 9 ? n.slice(0, 8) + '\u2026' : n;
 function nomeDi(i){
+  if(CPU) return i === 0 ? (mpNome() || 'Tu') : 'Computer';
   if(!MP) return NOMI_G[i];
   return i === MP.posto ? (mpNome() || 'Tu') : (MP.nomeAvversario || 'Avversario');
 }
@@ -394,7 +395,7 @@ const bonusBurraco = m => { const t = tipoBurraco(m); return t ? t[1] : 0; };
    disponibile per giorni, anche quando la stanza sul server si e' estinta. */
 const REGISTRO = 'burraco_partite_v1';
 const STATO_PRE = 'burraco_stato:';
-const chiave = () => MP ? 'mp:' + MP.code : 'locale';
+const chiave = () => MP ? 'mp:' + MP.code : (CPU ? 'cpu' : 'locale');
 
 function partite(){
   try{ return JSON.parse(localStorage.getItem(REGISTRO) || '[]'); }catch(e){ return []; }
@@ -422,9 +423,10 @@ function salva(){
   // conserva solo quando è davvero avviata.
   if(!ST.finita && (ST.turni || 0) < CFG.SALVA_DA) return;
   try{
-    localStorage.setItem(STATO_PRE + chiave(), JSON.stringify({ST, uid:_uid, v:1}));
+    localStorage.setItem(STATO_PRE + chiave(),
+      JSON.stringify({ST, uid:_uid, v:1, livello: CPU ? CPU.livello : null}));
     registra({chiave: chiave(), code: MP ? MP.code : null,
-              ruolo: MP ? MP.ruolo : 'locale',
+              ruolo: MP ? MP.ruolo : (CPU ? 'cpu' : 'locale'),
               avversario: MP ? (MP.nomeAvversario || null) : null,
               punti: ST.punti.slice(), turni: ST.turni || 0, finita: !!ST.finita});
   }catch(e){ /* spazio pieno o navigazione privata: si gioca lo stesso */ }
@@ -442,7 +444,7 @@ const quando = t => {
   const d = new Date(t), p = n => String(n).padStart(2, '0');
   return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' alle ' + p(d.getHours()) + ':' + p(d.getMinutes());
 };
-let ST = null, SEL = [];
+let ST = null, SEL = [], CPU = null;
 
 function nuovaPartita(punti){
   const m = nuovoMazzo();
@@ -472,10 +474,10 @@ function ordina(h){
 // `mio()` = quale posto occupo su QUESTO schermo. Sullo stesso telefono coincidono;
 // online no, perché ognuno vede sempre la propria mano anche quando tocca all'altro.
 const io = () => ST.turno;
-const mio = () => MP ? MP.posto : ST.turno;
+const mio = () => MP ? MP.posto : (CPU ? 0 : ST.turno);
 const mano = () => ST.mani[io()];
 const selCarte = () => mano().filter(c => c && SEL.includes(c.id));
-const mioTurno = () => !MP || ST.turno === MP.posto;
+const mioTurno = () => MP ? ST.turno === MP.posto : (CPU ? ST.turno === 0 : true);
 
 /* ---------- AZIONI ---------- */
 function pesca(dove){
@@ -499,19 +501,29 @@ function pesca(dove){
    scartare per chiudere, quindi non resterebbe nessuna mossa legale.
    Il pozzetto ancora da prendere salva la situazione, perche' la mano si
    ripopola. Va impedito PRIMA, non dopo. */
-function vicoloCieco(resto){
-  if(!resto.length || !resto.every(puoWild)) return false;
-  if(!ST.pozzettoPreso[io()] && ST.pozzetti.length) return false;
-  return true;
+/* La domanda giusta non e' "che carte restano" ma "dopo questa mossa esiste
+   ancora uno scarto legale?". Il turno finisce sempre con uno scarto, e con una
+   sola carta in mano scartare significa chiudere: serve il burraco e la carta
+   non puo' essere una matta. `burracoDopo` tiene conto della calata in corso,
+   che il burraco potrebbe crearlo adesso. */
+function vicoloCieco(resto, burracoDopo){
+  if(!ST.pozzettoPreso[io()] && ST.pozzetti.length) return false;  // il pozzetto ripopola
+  if(!resto.length) return true;                                   // niente da scartare
+  if(resto.length > 1) return false;                               // scarto libero
+  return !burracoDopo || puoWild(resto[0]);                        // scartarla = chiudere
 }
-const AVVISO_MATTA = 'Ti resterebbe in mano solo la matta, che non si pu\u00f2 ' +
-  'scartare per chiudere: tieni anche un\'altra carta.';
+const avvisoVicolo = resto => !resto.length
+  ? 'Devi tenerti una carta da scartare: il turno finisce sempre con uno scarto.'
+  : puoWild(resto[0])
+    ? 'Ti resterebbe solo la matta, che non si pu\u00f2 scartare per chiudere: tieni anche un\'altra carta.'
+    : 'Ti resterebbe una carta sola: scartarla sarebbe una chiusura, e non hai ancora un burraco.';
 
 function cala(){
   const sel = selCarte();
   const m = valida(sel);
   if(!m) return msg('Combinazione non valida.');
-  if(vicoloCieco(mano().filter(c => !SEL.includes(c.id)))) return msg(AVVISO_MATTA);
+  const restoC = mano().filter(c => !SEL.includes(c.id));
+  if(vicoloCieco(restoC, haBurraco(io()) || isBurraco(m))) return msg(avvisoVicolo(restoC));
   const voli = cattura(sel, '#mano');
   m.id = ++ST.meldId;
   ST.melds[io()].push(m);
@@ -527,7 +539,8 @@ function attacca(meldId){
   if(i < 0) return msg('Puoi attaccare solo alle tue combinazioni.');
   const nm = riattacca(arr[i], sel);
   if(!nm) return msg('Quelle carte non si attaccano lì.');
-  if(vicoloCieco(mano().filter(c => !SEL.includes(c.id)))) return msg(AVVISO_MATTA);
+  const restoA = mano().filter(c => !SEL.includes(c.id));
+  if(vicoloCieco(restoA, haBurraco(io()) || isBurraco(nm))) return msg(avvisoVicolo(restoA));
   const voli = cattura(sel, '#mano');
   arr[i] = nm;
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
@@ -587,6 +600,11 @@ function passaTurno(nota){
   render();
   if(_voliScarto){ anima(_voliScarto); _voliScarto = null; }
   if(MP){ if(nota) msg(nota); return; }        // online ognuno ha il suo schermo
+  if(CPU){
+    if(nota) msg(nota);
+    if(ST.turno === 1) setTimeout(cpuGioca, 900);
+    return;
+  }
   // l'overlay copre tutto: aspetta che lo scarto sia arrivato a destinazione
   setTimeout(() => {
     if(ST.finita) return;
@@ -804,7 +822,7 @@ function render(){
   const manoEl = document.getElementById('mano');
   manoEl.innerHTML =
     (ST.mani[p] || []).filter(Boolean).map(c => cardHTML(c, {sel:SEL.includes(c.id)})).join('');
-  manoEl.className = (ST.fase === 'pesca' && !ST.finita && (!MP || mioTurno())) ? 'bloccata' : '';
+  manoEl.className = (ST.fase === 'pesca' && !ST.finita && mioTurno()) ? 'bloccata' : '';
 
   document.getElementById('tavolo').className =
     (ST.fase === 'gioca' && SEL.length >= 3 && !ST.finita) ? 'cala' : '';
@@ -993,6 +1011,7 @@ function mpInviaStato(forza){
 function mpConnetti(code, ruolo){
   MP = {ruolo, posto: ruolo === 'host' ? 0 : 1, code, ws:null,
         avversarioOn:false, nomeAvversario:null, ultimaFirma:null};
+  CPU = null;
   registra({chiave:'mp:' + code, code, ruolo});
   if(ruolo === 'guest') ST = null;
   else {
@@ -1205,11 +1224,13 @@ function menuIniziale(){
     '<button onclick="avviaLocale()">' +
       (inCorso ? 'Riprendi la partita qui' : 'Gioca qui in due') + '</button>' +
     (inCorso ? '<button class="g" onclick="avviaLocale(true)">Comincia una nuova partita qui</button>' : '') +
+    '<button class="g" onclick="menuCpu()">Gioca contro il computer</button>' +
     '<button class="g" onclick="apriLobby()">Gioca online</button>');
 }
 
 function avviaLocale(nuova){
   if(MP){ try{ MP.ws && MP.ws.close(); }catch(e){} MP = null; }
+  CPU = null;
   chiudiAvvisoVer(); mpScordaSessione();
   const d = nuova ? null : ripristina('locale');
   if(d && !d.ST.finita){ ST = d.ST; _uid = Math.max(_uid, d.uid || 0); SEL = []; }
@@ -1241,7 +1262,8 @@ function nuovaSmazzataManuale(){
 }
 
 function rigaPartita(p){
-  const eti = p.ruolo === 'locale' ? 'Qui in due'
+  const eti = p.ruolo === 'cpu' ? 'Contro il computer'
+            : p.ruolo === 'locale' ? 'Qui in due'
             : (p.code + (p.avversario ? ' \u00b7 ' + p.avversario : '')) +
               (p.ruolo === 'host' ? ' \u00b7 la crei tu' : '');
   const pt = p.punti ? p.punti[0] + '\u2013' + p.punti[1] : '0\u20130';
@@ -1279,6 +1301,7 @@ function riprendiPartita(k){
   const p = partite().find(x => x.chiave === k);
   if(!p) return;
   chiudiModale();
+  if(p.ruolo === 'cpu') return avviaCpu((ripristina('cpu') || {}).livello || 'medio');
   if(p.ruolo === 'locale') return avviaLocale();
   mpLeggiNome();
   mpConnetti(p.code, p.ruolo);
@@ -1365,11 +1388,184 @@ addEventListener('visibilitychange', () => {
   if(!document.hidden && MP && (!MP.ws || MP.ws.readyState !== 1)) mpSocket();
 });
 
+/* ============================================================
+   IL COMPUTER
+   Tre livelli, stessa testa: cambia quanto guarda avanti e quanto sta
+   attento a non servire l'avversario. Il cuore e' `scegliCalate`, che
+   trova come spezzare la mano in combinazioni.
+   ============================================================ */
+
+// Tutte le combinazioni plausibili estraibili da un insieme di carte.
+function candidati(carte){
+  const out = [], matte = carte.filter(puoWild);
+  const perRango = {};
+  carte.forEach(c => { if(!puoWild(c)) (perRango[c.r] = perRango[c.r] || []).push(c); });
+  for(const r in perRango){
+    const g = perRango[r];
+    for(let n = Math.min(g.length, 8); n >= 3; n--) out.push(g.slice(0, n));
+    if(g.length >= 2) for(const w of matte) out.push(g.slice(0, Math.min(g.length, 7)).concat([w]));
+  }
+  for(const s of SEMI){
+    const perValore = new Map();
+    for(const c of carte) if(c.s === s && !puoWild(c)){
+      if(!perValore.has(c.r)) perValore.set(c.r, c);
+      if(c.r === 1 && !perValore.has(14)) perValore.set(14, c);     // l'asso vale anche alto
+    }
+    const vals = [...perValore.keys()].sort((a, b) => a - b);
+    for(let i = 0; i < vals.length; i++) for(let j = i + 2; j < vals.length; j++){
+      const fetta = vals.slice(i, j + 1).map(v => perValore.get(v));
+      if(new Set(fetta.map(c => c.id)).size !== fetta.length) continue;   // stesso asso due volte
+      out.push(fetta);
+      for(const w of matte) out.push(fetta.concat([w]));
+    }
+  }
+  const buone = [];
+  for(const cc of out){ const m = valida(cc); if(m) buone.push(m); }
+  return buone;
+}
+
+const puntiMeld = m => m.carte.reduce((t, c) => t + valCarta(c), 0) + bonusBurraco(m);
+
+// Scelta ingorda: prende la migliore, toglie le carte usate, ricomincia.
+function scegliCalate(carte){
+  const scelte = [];
+  let resto = carte.slice();
+  for(let giro = 0; giro < 8; giro++){
+    const cand = candidati(resto);
+    if(!cand.length) break;
+    cand.sort((a, b) => puntiMeld(b) - puntiMeld(a) || b.carte.length - a.carte.length);
+    const m = cand[0];
+    const usati = new Set(m.carte.map(c => c.id));
+    scelte.push(m);
+    resto = resto.filter(c => !usati.has(c.id));
+  }
+  return {scelte, resto};
+}
+const valoreCalate = r => r.scelte.reduce((t, m) => t + puntiMeld(m), 0);
+
+/* --- pesca: conviene la pila o il tallone? --- */
+function cpuPesca(){
+  let prendiPila = false;
+  if(ST.scarti.length){
+    const senza = valoreCalate(scegliCalate(ST.mani[1]));
+    const conPila = scegliCalate(ST.mani[1].concat(ST.scarti));
+    // le carte della pila che restano inutilizzate sono zavorra: pesano in negativo
+    const zavorra = conPila.resto.reduce((t, c) => t + valCarta(c), 0) * 0.5;
+    prendiPila = (valoreCalate(conPila) - senza - zavorra) > (CPU.livello === 'facile' ? 60 : 15);
+  }
+  pesca(prendiPila && ST.scarti.length ? 'scarti' : 'mazzo');
+}
+
+/* --- attacchi e calate --- */
+function cpuAttacca(){
+  for(const m of ST.melds[1].slice()){
+    for(const c of ST.mani[1].slice()){
+      if(ST.mani[1].length <= 1) return;
+      const nm = riattacca(m, [c]);
+      if(!nm) continue;
+      if(vicoloCieco(ST.mani[1].filter(x => x.id !== c.id),
+                     haBurraco(1) || isBurraco(nm))) continue;
+      // al livello alto la matta non si spreca su una combinazione qualsiasi
+      if(CPU.livello === 'difficile' && puoWild(c) && !isBurraco(nm)) continue;
+      SEL = [c.id];
+      attacca(m.id);
+      SEL = [];
+      return cpuAttacca();
+    }
+  }
+}
+
+function cpuCala(){
+  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
+  cpuAttacca();
+  const {scelte} = scegliCalate(ST.mani[1]);
+  for(const m of scelte){
+    const ids = m.carte.map(c => c.id);
+    const resto = ST.mani[1].filter(c => !ids.includes(c.id));
+    if(vicoloCieco(resto, haBurraco(1) || isBurraco(m))) continue;
+    // al livello alto le combinazioni corte si tengono in mano: valgono di piu'
+    // se diventano burraco, e calarle presto regala attacchi all'avversario
+    if(CPU.livello === 'difficile' && m.carte.length < 4 && ST.mazzo.length > 25 &&
+       !ST.melds[1].length) continue;
+    SEL = ids;
+    cala();
+    SEL = [];
+  }
+  cpuAttacca();
+  setTimeout(cpuScarta, 650);
+}
+
+/* --- scarto: la carta meno utile a me e meno utile a lui --- */
+function utilita(c, mano){
+  let u = 0;
+  for(const x of mano){
+    if(x.id === c.id) continue;
+    if(x.r === c.r) u += 3;
+    if(x.s === c.s && Math.abs(x.r - c.r) <= 2) u += 2;
+  }
+  if(puoWild(c)) u += 20;                       // le matte non si buttano
+  return u;
+}
+function serveAllAvversario(c){
+  return ST.melds[0].some(m => !!riattacca(m, [c]));
+}
+
+function cpuScarta(){
+  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
+  const h = ST.mani[1];
+  const ord = h.slice().sort((a, b) => {
+    const ua = utilita(a, h), ub = utilita(b, h);
+    if(ua !== ub) return ua - ub;
+    if(CPU.livello !== 'facile'){
+      const sa = serveAllAvversario(a), sb = serveAllAvversario(b);
+      if(sa !== sb) return sa ? 1 : -1;          // meglio non regalargli attacchi
+    }
+    return valCarta(b) - valCarta(a);            // via i punti alti: pesano se chiude lui
+  });
+  if(CPU.livello === 'facile') ord.sort(() => Math.random() - 0.5);
+  for(const c of ord){
+    const prima = ST.scarti.length;
+    SEL = [c.id];
+    scarta();
+    SEL = [];
+    if(ST.scarti.length > prima) return;         // riuscito
+  }
+  msg('Il computer non ha scarti possibili.');   // non dovrebbe accadere
+}
+
+function cpuGioca(){
+  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
+  cpuPesca();
+  setTimeout(cpuCala, 800);
+}
+
+function avviaCpu(livello){
+  MP = null; CPU = {livello};
+  chiudiAvvisoVer(); mpScordaSessione();
+  const d = ripristina('cpu');
+  if(d && !d.ST.finita && d.livello === livello){
+    ST = d.ST; _uid = Math.max(_uid, d.uid || 0); SEL = [];
+  }else{
+    scordaPartita('cpu');
+    nuovaPartita();
+  }
+  chiudiModale(); closeOverlay(); render();
+  if(ST.turno === 1) setTimeout(cpuGioca, 900);
+}
+
+function menuCpu(){
+  modale('<h2>Contro il computer</h2><p>Quanto deve impegnarsi?</p>' +
+    '<button onclick="avviaCpu(\'facile\')">Facile</button>' +
+    '<button onclick="avviaCpu(\'medio\')">Medio</button>' +
+    '<button onclick="avviaCpu(\'difficile\')">Difficile</button>' +
+    '<button class="g" onclick="menuIniziale()">Indietro</button>');
+}
+
 /* ---------- GESTI ---------- */
 // Unico punto in cui si decide chi puo' agire e chi invece deve solo chiedere.
 function consenti(){
   if(!ST || ST.finita) return false;
-  if(MP && !mioTurno()){ msg('Tocca a ' + nomeDi(ST.turno) + '.'); return false; }
+  if(!mioTurno()){ msg('Tocca a ' + nomeDi(ST.turno) + '.'); return false; }
   return true;
 }
 const guest = () => MP && MP.ruolo === 'guest';
@@ -1382,7 +1578,7 @@ function uiAttacca(id){       if(consenti()){ guest() ? mpMossa('attacca', {meld
 /* ---------- EVENTI ---------- */
 function bind(){
   document.querySelectorAll('#mano .c').forEach(el => el.onclick = () => {
-    if(MP && !mioTurno()) return msg('Tocca a ' + nomeDi(ST.turno) + '.');
+    if(!mioTurno()) return msg('Tocca a ' + nomeDi(ST.turno) + '.');
     // Selezionare prima di pescare non porta a niente: meglio dirlo subito.
     if(ST.fase === 'pesca')
       return msg('Prima pesca: tocca il tallone o la pila degli scarti.');
