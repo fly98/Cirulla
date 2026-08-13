@@ -50,7 +50,7 @@ body{
    c'e' modo di disattivarla dalla pagina. L'unica difesa e' tenere il testo
    sotto quella fascia. --franchigia e' quanto si scende: se sul telefono
    risultasse ancora appannato, basta alzarla. */
-:root{--franchigia:3.4em}
+:root{--franchigia:2.1em}
 header{padding:calc(env(safe-area-inset-top) + var(--franchigia)) .6em .45em;
   display:flex;gap:9px;align-items:center;justify-content:space-between;
   background:#0a3122;flex:0 0 auto;
@@ -116,6 +116,10 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 #modalBox button{width:100%;margin-bottom:7px}
 #modalBox .codice{color:var(--oro);letter-spacing:6px;font-size:26px;font-weight:800}
 #stanze button{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+#avvisoVer{display:none;background:var(--oro);color:#1a1a1a;font-size:.78em;font-weight:600;
+  padding:7px 10px;gap:10px;align-items:center;justify-content:space-between;flex:0 0 auto}
+#avvisoVer.on{display:flex}
+#avvisoVer button{background:rgba(0,0,0,.18);color:#1a1a1a;padding:.3em .7em;font-size:1em}
 #voli{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
 #voli .c{position:absolute;margin:0!important;box-shadow:0 6px 16px rgba(0,0,0,.5)}
 #overlay{position:fixed;inset:0;background:rgba(6,26,18,.97);display:none;
@@ -132,6 +136,8 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
   <span id="hC"></span>
   <span id="hR"></span>
 </header>
+
+<div id="avvisoVer"><span id="avvisoVerT"></span><button onclick="chiudiAvvisoVer()">Ho capito</button></div>
 
 <div id="tavolo"></div>
 
@@ -169,7 +175,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-2';
+const VERSIONE = '13ago-3';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -947,7 +953,7 @@ function mpSocket(){
   try{ if(MP.ws) MP.ws.close(); }catch(e){}
   const ws = new WebSocket('wss://' + MP_HOST + '/room/' + MP.code + '/ws?role=' + MP.ruolo);
   MP.ws = ws;
-  ws.onopen = () => mpInvia({t:'nome', nome: mpNome() || 'Giocatore'});
+  ws.onopen = () => mpInvia({t:'nome', nome: mpNome() || 'Giocatore', ver: VERSIONE});
   ws.onmessage = ev => { try{ mpMsg(JSON.parse(ev.data)); }catch(e){} };
   ws.onclose = () => { if(MP && MP.ws === ws) setTimeout(() => { if(MP) mpSocket(); }, 1800); };
   ws.onerror = () => { try{ ws.close(); }catch(e){} };
@@ -958,7 +964,19 @@ function mpMsg(m){
 
   if(m.t === 'nome'){
     MP.nomeAvversario = (m.nome || '').trim().slice(0,20) || null;
+    MP.verAvversario = m.ver || null;
     mpSalvaSessione();
+    // Le regole girano SOLO sul dispositivo dell'host: se le due copie sono
+    // diverse, l'altro vede rifiuti che non sa spiegarsi. Le copie vecchie non
+    // mandano affatto la versione: anche quello e' un disallineamento.
+    if(MP.verAvversario !== VERSIONE){
+      const altrui = MP.verAvversario || 'una versione precedente';
+      avvisaVersione(MP.ruolo === 'guest'
+        ? 'Chi ha creato la stanza usa ' + altrui + ', tu ' + VERSIONE +
+          '. Le regole seguono la sua: fagli fare menu \u2192 Aggiorna.'
+        : (MP.nomeAvversario || 'L\'avversario') + ' usa ' + altrui + ', tu ' + VERSIONE +
+          '. Comandano le tue regole: se vede rifiuti strani, e\' per questo.');
+    }
     if(ST) render();
     return;
   }
@@ -966,6 +984,9 @@ function mpMsg(m){
   if(m.t === 'presence'){
     if(m.who === MP.ruolo) return;
     MP.avversarioOn = m.on;
+    // Il nome (e con esso la versione) viaggia all'apertura del canale: chi era
+    // gia' dentro l'ha mandato quando l'altro non c'era ancora. Si rimanda.
+    if(m.on) mpInvia({t:'nome', nome: mpNome() || 'Giocatore', ver: VERSIONE});
     const a = document.getElementById('mpAttesa');
     if(a) a.textContent = m.on ? 'Avversario collegato!' : 'In attesa dell\'avversario\u2026';
     if(MP.ruolo === 'host' && m.on){
@@ -1065,6 +1086,16 @@ function animaDaFoto(foto){
   anima(voli);
 }
 
+// Fascia fissa: un messaggio a tempo verrebbe coperto dai suggerimenti e una
+// schermata verrebbe richiusa dal primo stato in arrivo.
+function avvisaVersione(t){
+  document.getElementById('avvisoVerT').textContent = '\u26a0\ufe0e ' + t;
+  document.getElementById('avvisoVer').classList.add('on');
+}
+function chiudiAvvisoVer(){
+  document.getElementById('avvisoVer').classList.remove('on');
+}
+
 /* --- lobby --- */
 function modale(html){
   document.getElementById('modalBox').innerHTML = html;
@@ -1110,7 +1141,11 @@ function apriMenu(){
   modale('<h2>Burraco</h2><p>versione ' + VERSIONE + '</p>' +
     '<button class="g" onclick="aggiornaApp()">Aggiorna all\'ultima versione</button>' +
     (MP ? '<p>Stanza <b>' + MP.code + '</b> \u00b7 ' +
-            (MP.avversarioOn ? 'avversario collegato' : 'avversario assente') + '</p>' : '') +
+            (MP.avversarioOn ? 'avversario collegato' : 'avversario assente') +
+            (MP.verAvversario
+              ? '<br>versione dell\'avversario: ' + MP.verAvversario +
+                (MP.verAvversario !== VERSIONE ? ' \u2014 diversa dalla tua!' : ' (uguale)')
+              : '') + '</p>' : '') +
     '<button onclick="apriLobby()">Gioca online</button>' +
     '<button class="g" onclick="chiudiModale();nuovaSmazzataManuale()">Nuova partita</button>' +
     (ripristina() ? '<button class="g" onclick="cancellaSalvataggio()">' +
@@ -1213,6 +1248,7 @@ async function mpListaStanze(){
 }
 
 function mpEsci(){
+  chiudiAvvisoVer();
   mpScordaSessione();
   if(MP){ try{ MP.ws && MP.ws.close(); }catch(e){} }
   MP = null;
