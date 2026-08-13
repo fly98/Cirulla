@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-5';
+const VERSIONE = '13ago-6';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -495,10 +495,23 @@ function pesca(dove){
   SEL = []; render(); anima(voli);
 }
 
+/* Restare in mano con sole matte e' un vicolo cieco: la matta non si puo'
+   scartare per chiudere, quindi non resterebbe nessuna mossa legale.
+   Il pozzetto ancora da prendere salva la situazione, perche' la mano si
+   ripopola. Va impedito PRIMA, non dopo. */
+function vicoloCieco(resto){
+  if(!resto.length || !resto.every(puoWild)) return false;
+  if(!ST.pozzettoPreso[io()] && ST.pozzetti.length) return false;
+  return true;
+}
+const AVVISO_MATTA = 'Ti resterebbe in mano solo la matta, che non si pu\u00f2 ' +
+  'scartare per chiudere: tieni anche un\'altra carta.';
+
 function cala(){
   const sel = selCarte();
   const m = valida(sel);
   if(!m) return msg('Combinazione non valida.');
+  if(vicoloCieco(mano().filter(c => !SEL.includes(c.id)))) return msg(AVVISO_MATTA);
   const voli = cattura(sel, '#mano');
   m.id = ++ST.meldId;
   ST.melds[io()].push(m);
@@ -514,6 +527,7 @@ function attacca(meldId){
   if(i < 0) return msg('Puoi attaccare solo alle tue combinazioni.');
   const nm = riattacca(arr[i], sel);
   if(!nm) return msg('Quelle carte non si attaccano lì.');
+  if(vicoloCieco(mano().filter(c => !SEL.includes(c.id)))) return msg(AVVISO_MATTA);
   const voli = cattura(sel, '#mano');
   arr[i] = nm;
   ST.mani[io()] = mano().filter(c => !SEL.includes(c.id));
@@ -541,9 +555,11 @@ function scarta(){
     const puoPozzetto = !ST.pozzettoPreso[io()] && ST.pozzetti.length;
     if(!puoPozzetto && !haBurraco(io()))
       return msg('Non puoi chiudere: ti manca un burraco.');
-    // Codice FIBuR: la matta si può scartare sempre, tranne per la chiusura
-    if(!puoPozzetto && puoWild(sel[0]))
-      return msg('Non puoi chiudere scartando una matta.');
+    // Codice FIBuR: la matta si può scartare sempre, tranne per la chiusura.
+    // Eccezione di salvataggio: se in mano ci sono SOLO matte non esiste alcuno
+    // scarto legale, e vietarlo bloccherebbe la partita per sempre.
+    if(!puoPozzetto && puoWild(sel[0]) && !mano().every(puoWild))
+      return msg('Non puoi chiudere scartando una matta: scarta un\'altra carta.');
   }
   const c = sel[0];
   const voli = cattura([c], '#mano');
