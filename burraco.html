@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-15';
+const VERSIONE = '13ago-16';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -1471,6 +1471,29 @@ function candidati(carte){
 
 const puntiMeld = m => m.carte.reduce((t, c) => t + valCarta(c), 0) + bonusBurraco(m);
 
+/* Quanto una combinazione PROMETTE, oltre ai punti che vale adesso.
+   Ordinare per soli punti immediati fa scegliere quasi sempre i gruppi (tre
+   nove valgono 30, una scala 3-4-5 ne vale 15) ma e' una valutazione miope:
+   una scala cresce da due lati e arriva a burraco con carte qualsiasi dello
+   stesso seme, mentre un gruppo ha bisogno di sette carte dello stesso valore. */
+function potenziale(m, resto){
+  if(isBurraco(m)) return 0;                       // gia' arrivata: non deve crescere
+  if(m.tipo === 'scala'){
+    const giu = m.vals[0] - 1, su = m.vals[m.vals.length - 1] + 1;
+    let n = 0;
+    for(const c of resto){
+      if(puoWild(c)){ n++; continue; }
+      if(c.s !== m.seme) continue;
+      if(c.r === giu || c.r === su) n += 2;        // la allunga subito
+      else if(Math.abs(c.r - giu) <= 2 || Math.abs(c.r - su) <= 2) n++;
+    }
+    return 26 + n * 9 + (7 - Math.min(7, m.carte.length)) * 2;
+  }
+  let n = 0;
+  for(const c of resto) if(c.r === m.rango || puoWild(c)) n++;
+  return n * 4;
+}
+
 // Scelta ingorda: prende la migliore, toglie le carte usate, ricomincia.
 function scegliCalate(carte){
   const scelte = [];
@@ -1478,7 +1501,8 @@ function scegliCalate(carte){
   for(let giro = 0; giro < 8; giro++){
     const cand = candidati(resto);
     if(!cand.length) break;
-    cand.sort((a, b) => puntiMeld(b) - puntiMeld(a) || b.carte.length - a.carte.length);
+    const val = m => puntiMeld(m) + potenziale(m, resto);
+    cand.sort((a, b) => val(b) - val(a) || b.carte.length - a.carte.length);
     const m = cand[0];
     const usati = new Set(m.carte.map(c => c.id));
     scelte.push(m);
