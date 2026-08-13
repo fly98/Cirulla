@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-20';
+const VERSIONE = '13ago-21';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -471,7 +471,10 @@ function nuovaPartita(punti){
 }
 
 function ordina(h){
-  h.sort((a, b) => (a.r === 0) - (b.r === 0) || SEMI.indexOf(a.s) - SEMI.indexOf(b.s) || a.r - b.r);
+  // L'asso si tiene dopo il Re, non prima del due: e' dove lo cerca l'occhio.
+  const v = c => c.r === 1 ? 14 : c.r;
+  h.sort((a, b) => (a.r === 0) - (b.r === 0) ||
+                   SEMI.indexOf(a.s) - SEMI.indexOf(b.s) || v(a) - v(b));
 }
 
 // `io()` = di chi è il turno: lo usa la logica di gioco.
