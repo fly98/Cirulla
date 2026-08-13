@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-16';
+const VERSIONE = '13ago-20';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -1487,43 +1487,65 @@ function potenziale(m, resto){
       if(c.r === giu || c.r === su) n += 2;        // la allunga subito
       else if(Math.abs(c.r - giu) <= 2 || Math.abs(c.r - su) <= 2) n++;
     }
-    return 26 + n * 9 + (7 - Math.min(7, m.carte.length)) * 2;
+    const B = (CPU && CPU.bonusScala !== undefined) ? CPU.bonusScala : 26;
+    const P = (CPU && CPU.pesoCrescita !== undefined) ? CPU.pesoCrescita : 9;
+    return B + n * P + (7 - Math.min(7, m.carte.length)) * 2;
   }
   let n = 0;
   for(const c of resto) if(c.r === m.rango || puoWild(c)) n++;
   return n * 4;
 }
 
-// Scelta ingorda: prende la migliore, toglie le carte usate, ricomincia.
+/* Come spezzare la mano in combinazioni.
+   Con `ventaglio` = 1 e' la scelta ingorda: prende la migliore e ricomincia.
+   Il difetto e' che la migliore singola puo' rovinare il resto — prendere tre
+   nove porta via il nove che serviva alla scala. Con `ventaglio` > 1 si tengono
+   in vita piu' spartizioni parziali e alla fine si sceglie la piu' redditizia. */
 function scegliCalate(carte){
-  const scelte = [];
-  let resto = carte.slice();
+  const K = (CPU && CPU.ventaglio) || 1;
+  let fronte = [{scelte:[], resto:carte.slice(), tot:0}];
   for(let giro = 0; giro < 8; giro++){
-    const cand = candidati(resto);
-    if(!cand.length) break;
-    const val = m => puntiMeld(m) + potenziale(m, resto);
-    cand.sort((a, b) => val(b) - val(a) || b.carte.length - a.carte.length);
-    const m = cand[0];
-    const usati = new Set(m.carte.map(c => c.id));
-    scelte.push(m);
-    resto = resto.filter(c => !usati.has(c.id));
+    const nuovi = [];
+    let cresciuto = false;
+    for(const st of fronte){
+      const cand = candidati(st.resto);
+      if(!cand.length){ nuovi.push(st); continue; }
+      const val = m => puntiMeld(m) + potenziale(m, st.resto);
+      cand.sort((a, b) => val(b) - val(a) || b.carte.length - a.carte.length);
+      for(const m of cand.slice(0, K)){
+        const usati = new Set(m.carte.map(c => c.id));
+        nuovi.push({scelte: st.scelte.concat([m]),
+                    resto: st.resto.filter(c => !usati.has(c.id)),
+                    tot: st.tot + puntiMeld(m)});
+        cresciuto = true;
+      }
+    }
+    if(!cresciuto) break;
+    nuovi.sort((a, b) => b.tot - a.tot);
+    fronte = nuovi.slice(0, Math.max(4, K * 2));
   }
-  return {scelte, resto};
+  fronte.sort((a, b) => b.tot - a.tot);
+  return fronte[0];
 }
 const valoreCalate = r => r.scelte.reduce((t, m) => t + puntiMeld(m), 0);
+
+/* Le funzioni del computer valgono per il giocatore di turno, non per un posto
+   fisso: cosi' si possono far giocare due strategie una contro l'altra. */
+const IOC_get = () => ST.turno;
 
 /* --- pesca: conviene la pila o il tallone? --- */
 function cpuPesca(){
   let prendiPila = false;
   if(ST.scarti.length){
-    const senza = valoreCalate(scegliCalate(ST.mani[1]));
-    const conPila = scegliCalate(ST.mani[1].concat(ST.scarti));
+    const senza = valoreCalate(scegliCalate(ST.mani[IOC_get()]));
+    const conPila = scegliCalate(ST.mani[IOC_get()].concat(ST.scarti));
     // le carte della pila che restano inutilizzate sono zavorra: pesano in negativo
     const zavorra = conPila.resto.reduce((t, c) => t + valCarta(c), 0) * 0.5;
     /* Soglia tarata provando 0, 15, 40, 80, 150 e 400: prendere la pila con
        leggerezza carica la mano di zavorra e allunga la partita a vantaggio
        dell'avversario. Meglio prenderla solo quando rende parecchio. */
-    const soglia = CPU.livello === 'facile' ? 200 : 80;
+    const soglia = CPU.livello === 'facile' ? 200
+                 : (CPU.sogliaPila !== undefined ? CPU.sogliaPila : 80);
     prendiPila = (valoreCalate(conPila) - senza - zavorra) > soglia;
   }
   const dalla = prendiPila && ST.scarti.length ? 'scarti' : 'mazzo';
@@ -1534,17 +1556,17 @@ function cpuPesca(){
 /* --- attacchi e calate --- */
 // Un solo attacco per volta: torna true se ne ha fatto uno.
 function cpuAttaccaUno(){
-  for(const m of ST.melds[1].slice()){
-    for(const c of ST.mani[1].slice()){
+  for(const m of ST.melds[IOC_get()].slice()){
+    for(const c of ST.mani[IOC_get()].slice()){
       const nm = riattacca(m, [c]);
       if(!nm) continue;
-      if(vicoloCieco(ST.mani[1].filter(x => x.id !== c.id),
-                     haBurraco(1) || isBurraco(nm))) continue;
+      if(vicoloCieco(ST.mani[IOC_get()].filter(x => x.id !== c.id),
+                     haBurraco(IOC_get()) || isBurraco(nm))) continue;
       /* Al livello alto la matta si tiene, ma solo finche' ce n'e' una sola:
          tenerle tutte fa finire la mano piena di matte inscartabili, ed era la
          ragione per cui "difficile" giocava peggio di "medio". */
       if(CPU.livello === 'difficile' && puoWild(c) && !isBurraco(nm) &&
-         ST.mani[1].filter(puoWild).length < 2) continue;
+         ST.mani[IOC_get()].filter(puoWild).length < 2) continue;
       SEL = [c.id];
       conFoto(() => attacca(m.id));
       SEL = [];
@@ -1556,11 +1578,11 @@ function cpuAttaccaUno(){
 
 // Una sola calata per volta.
 function cpuCalaUna(){
-  const {scelte} = scegliCalate(ST.mani[1]);
+  const {scelte} = scegliCalate(ST.mani[IOC_get()]);
   for(const m of scelte){
     const ids = m.carte.map(c => c.id);
-    const resto = ST.mani[1].filter(c => !ids.includes(c.id));
-    if(vicoloCieco(resto, haBurraco(1) || isBurraco(m))) continue;
+    const resto = ST.mani[IOC_get()].filter(c => !ids.includes(c.id));
+    if(vicoloCieco(resto, haBurraco(IOC_get()) || isBurraco(m))) continue;
     SEL = ids;
     conFoto(() => cala());
     SEL = [];
@@ -1573,7 +1595,7 @@ function cpuCalaUna(){
    Spezzettarlo in chiamate parallele faceva finire pezzi del suo turno dentro
    quello dell'avversario. Ogni passo ricontrolla di essere ancora di turno. */
 function cpuPasso(){
-  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
+  if(!CPU || !ST || ST.finita || !CPU) return;
   if(cpuAttaccaUno()) return setTimeout(cpuPasso, 320);
   if(cpuCalaUna())    return setTimeout(cpuPasso, 320);
   setTimeout(cpuScarta, 520);
@@ -1598,18 +1620,18 @@ function utilita(c, mano){
 // Quanto la carta fa comodo a lui: attaccabile subito, o vicina a cio' che ha in tavola.
 function pericolo(c){
   let p = 0;
-  for(const m of ST.melds[0]){
+  for(const m of ST.melds[1-IOC_get()]){
     if(riattacca(m, [c])) p += 12;
     if(m.tipo === 'gruppo' && m.rango === c.r) p += 5;
     if(m.tipo === 'scala' && m.seme === c.s) p += 2;
   }
   return p;
 }
-const serveAllAvversario = c => ST.melds[0].some(m => !!riattacca(m, [c]));
+const serveAllAvversario = c => ST.melds[1-IOC_get()].some(m => !!riattacca(m, [c]));
 
 function cpuScarta(){
-  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
-  const h = ST.mani[1];
+  if(!CPU || !ST || ST.finita || !CPU) return;
+  const h = ST.mani[IOC_get()];
   /* Divieti, non punteggi: con la mano piena una carta ben collegata superava
      il bonus della matta, ed e' cosi' che il computer finiva per buttare i jolly.
      Si scende di gradino solo quando il gradino sopra e' vuoto. */
@@ -1621,7 +1643,8 @@ function cpuScarta(){
     lista.sort(() => Math.random() - 0.5);
   }else{
     lista.sort((a, b) => {
-      const va = utilita(a, h) + 3 * pericolo(a), vb = utilita(b, h) + 3 * pericolo(b);
+      const W = (CPU.pesoPericolo !== undefined) ? CPU.pesoPericolo : 3;
+      const va = utilita(a, h) + W * pericolo(a), vb = utilita(b, h) + W * pericolo(b);
       if(va !== vb) return va - vb;
       return valCarta(b) - valCarta(a);          // via i punti alti: pesano se chiude lui
     });
@@ -1637,13 +1660,27 @@ function cpuScarta(){
 }
 
 function cpuGioca(){
-  if(!CPU || !ST || ST.finita || ST.turno !== 1) return;
+  if(!CPU || !ST || ST.finita || !CPU) return;
   cpuPesca();
   setTimeout(cpuPasso, 750);
 }
 
+/* Tarature ottenute facendo giocare le configurazioni una contro l'altra su
+   centinaia di partite (vedi banco.js e ab.js nel repo). In particolare:
+   - `ventaglio` e' quante spartizioni parziali della mano restano in gara;
+     3 batte la scelta ingorda 64% a 36%.
+   - `sogliaPila` e' quanto deve rendere la pila degli scarti per prenderla:
+     0 (prenderla appena conviene) batte 80 per l'83%. Prenderla SEMPRE sembrava
+     ancora meglio, ma e' degenere: il tallone non si esaurisce e la partita non
+     finisce piu'. */
+const LIVELLI = {
+  facile:    {ventaglio:1, sogliaPila:200},
+  medio:     {ventaglio:2, sogliaPila:40},
+  difficile: {ventaglio:3, sogliaPila:0}
+};
+
 function avviaCpu(livello){
-  MP = null; CPU = {livello};
+  MP = null; CPU = Object.assign({livello}, LIVELLI[livello] || LIVELLI.medio);
   chiudiAvvisoVer(); mpScordaSessione();
   const d = ripristina('cpu');
   if(d && !d.ST.finita && d.livello === livello){
