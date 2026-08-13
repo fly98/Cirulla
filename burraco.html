@@ -67,6 +67,18 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 #msg{text-align:center;font-size:.8em;min-height:1.3em;padding:0 10px 6px;color:var(--oro);opacity:.9}
 #tavolo.cala{background:rgba(255,213,79,.07)}
 
+#hMenu{cursor:pointer;opacity:.8;padding:0 4px}
+#modal{position:fixed;inset:0;background:rgba(6,26,18,.94);z-index:30;display:none;
+  align-items:center;justify-content:center;padding:20px}
+#modal.on{display:flex}
+#modalBox{max-width:400px;width:100%;text-align:center}
+#modalBox h2{margin:0 0 10px;font-size:20px}
+#modalBox p{margin:0 0 12px;font-size:13px;opacity:.85;white-space:pre-line}
+#modalBox input{font:inherit;font-size:15px;padding:9px 11px;border-radius:9px;border:0;
+  width:100%;margin-bottom:8px;text-align:center;background:rgba(255,255,255,.92);color:#111}
+#modalBox button{width:100%;margin-bottom:7px}
+#modalBox .codice{color:var(--oro);letter-spacing:6px;font-size:26px;font-weight:800}
+#stanze button{display:flex;justify-content:space-between;align-items:center;font-size:13px}
 #voli{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
 #voli .c{position:absolute;margin:0!important;box-shadow:0 6px 16px rgba(0,0,0,.5)}
 #overlay{position:fixed;inset:0;background:rgba(6,26,18,.97);display:none;
@@ -97,6 +109,8 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 </div>
 
 <div id="voli"></div>
+
+<div id="modal"><div id="modalBox"></div></div>
 
 <div id="overlay">
   <h2 id="ovT"></h2>
@@ -135,7 +149,11 @@ const CFG = {
 const SEMI = ['s','h','d','c'];
 const SIMB = {s:'\u2660', h:'\u2665', d:'\u2666', c:'\u2663'};
 const NOMI = {1:'A',11:'J',12:'Q',13:'K'};
-const NOMI_G = ['Filippo','Mena'];
+let NOMI_G = ['Filippo','Mena'];
+function nomeDi(i){
+  if(!MP) return NOMI_G[i];
+  return i === MP.posto ? (mpNome() || 'Tu') : (MP.nomeAvversario || 'Avversario');
+}
 
 const rk = r => NOMI[r] || String(r);
 const isJolly = c => c.r === 0;
@@ -312,7 +330,7 @@ const bonusBurraco = m => { const t = tipoBurraco(m); return t ? t[1] : 0; };
 const CHIAVE = 'burraco_stato_v1';
 
 function salva(){
-  if(!ST) return;
+  if(!ST || (MP && MP.ruolo === 'guest')) return;   // stato oscurato: non va conservato
   try{
     localStorage.setItem(CHIAVE, JSON.stringify({ST, uid:_uid, v:1}));
   }catch(e){ /* spazio pieno o navigazione privata: si gioca lo stesso */ }
@@ -351,9 +369,14 @@ function ordina(h){
   h.sort((a, b) => (a.r === 0) - (b.r === 0) || SEMI.indexOf(a.s) - SEMI.indexOf(b.s) || a.r - b.r);
 }
 
+// `io()` = di chi è il turno: lo usa la logica di gioco.
+// `mio()` = quale posto occupo su QUESTO schermo. Sullo stesso telefono coincidono;
+// online no, perché ognuno vede sempre la propria mano anche quando tocca all'altro.
 const io = () => ST.turno;
+const mio = () => MP ? MP.posto : ST.turno;
 const mano = () => ST.mani[io()];
-const selCarte = () => mano().filter(c => SEL.includes(c.id));
+const selCarte = () => mano().filter(c => c && SEL.includes(c.id));
+const mioTurno = () => !MP || ST.turno === MP.posto;
 
 /* ---------- AZIONI ---------- */
 function pesca(dove){
@@ -468,11 +491,12 @@ function passaTurno(nota){
   ST.fase = 'pesca';
   render();
   if(_voliScarto){ anima(_voliScarto); _voliScarto = null; }
+  if(MP){ if(nota) msg(nota); return; }        // online ognuno ha il suo schermo
   // l'overlay copre tutto: aspetta che lo scarto sia arrivato a destinazione
   setTimeout(() => {
     if(ST.finita) return;
-    overlay('Passa il telefono', (nota ? nota + '\n\n' : '') + 'Tocca a ' + NOMI_G[ST.turno] + '.',
-            'Sono ' + NOMI_G[ST.turno], () => { closeOverlay(); render(); });
+    overlay('Passa il telefono', (nota ? nota + '\n\n' : '') + 'Tocca a ' + nomeDi(ST.turno) + '.',
+            'Sono ' + nomeDi(ST.turno), () => { closeOverlay(); render(); });
   }, finVolo(1));
 }
 
@@ -510,18 +534,28 @@ function chiudi(p){
   ST.punti[0] += a.s; ST.punti[1] += b.s;
   render();
   if(_voliScarto){ anima(_voliScarto); _voliScarto = null; }
-  const attesa = finVolo(1);
+  setTimeout(mostraConteggio, finVolo(1));
+}
+
+function mostraConteggio(){
+  const a = conta(0), b = conta(1);
   const seg = n => (n >= 0 ? '+' : '\u2212') + Math.abs(n);
   const riga = (i, r) =>
-    NOMI_G[i] + '\n' +
+    nomeDi(i) + '\n' +
     (r.voci.length ? r.voci.map(v => '   ' + v[0] + '  ' + seg(v[1])).join('\n') + '\n' : '') +
     '   = ' + seg(r.s) + '   \u00b7   in tutto ' + ST.punti[i];
   const vinta = ST.punti.some(x => x >= CFG.PT_PARTITA);
-  setTimeout(() => overlay(p === null ? 'Tallone finito' : NOMI_G[p] + ' chiude',
+  const p = ST.chiusuraDi;
+  const guest = MP && MP.ruolo === 'guest';
+  overlay(p === null ? 'Tallone finito' : nomeDi(p) + ' chiude',
     riga(0, a) + '\n\n' + riga(1, b) + (vinta ? '\n\nPartita vinta da ' +
-      NOMI_G[ST.punti[0] > ST.punti[1] ? 0 : 1] + '.' : ''),
-    vinta ? 'Nuova partita' : 'Smazzata successiva',
-    () => { nuovaPartita(vinta ? [0, 0] : ST.punti); closeOverlay(); render(); }), attesa);
+      nomeDi(ST.punti[0] > ST.punti[1] ? 0 : 1) + '.' : ''),
+    guest ? 'Attendo la prossima smazzata' : (vinta ? 'Nuova partita' : 'Smazzata successiva'),
+    () => {
+      if(guest) return;
+      nuovaPartita(vinta ? [0, 0] : ST.punti);
+      closeOverlay(); render(); mpInviaStato();
+    });
 }
 
 /* ============================================================
@@ -625,13 +659,15 @@ function meldHTML(m, mio){
 }
 
 function render(){
-  const p = io(), av = 1 - p;
+  const p = mio(), av = 1 - p;
   scalaUI();
   const B = baseCarta();
   document.getElementById('hL').innerHTML =
-    '<b>' + NOMI_G[0] + '</b> ' + ST.punti[0] + ' &nbsp; <b>' + NOMI_G[1] + '</b> ' + ST.punti[1];
+    '<b>' + nomeDi(0) + '</b> ' + ST.punti[0] + ' &nbsp; <b>' + nomeDi(1) + '</b> ' + ST.punti[1] +
+    ' &nbsp;<span id="hMenu">\u2699</span>';
   document.getElementById('hC').innerHTML =
-    'turno: <b>' + NOMI_G[p] + '</b> \u00b7 ' + (ST.fase === 'pesca' ? 'pesca' : 'gioca');
+    'turno: <b>' + nomeDi(ST.turno) + '</b> \u00b7 ' + (ST.fase === 'pesca' ? 'pesca' : 'gioca') +
+    (MP ? (MP.avversarioOn ? ' \u00b7 \ud83d\udfe2' : ' \u00b7 \u26aa') : '');
   document.getElementById('hR').innerHTML =
     'pozzetti ' + ST.pozzetti.length + ' \u00b7 tallone ' + ST.mazzo.length;
 
@@ -643,7 +679,7 @@ function render(){
   };
   document.getElementById('tavolo').innerHTML =
     zona(p, 'tu' + (ST.pozzettoPreso[p] ? ' \u00b7 pozz.' : ''), true) +
-    zona(av, NOMI_G[av] + ' \u00b7 ' + ST.mani[av].length + ' carte' +
+    zona(av, nomeDi(av) + ' \u00b7 ' + (ST.mani[av] || []).length + ' carte' +
          (ST.pozzettoPreso[av] ? ' \u00b7 pozz.' : ''), false);
 
   const pesc = ST.fase === 'pesca' && !ST.finita;
@@ -671,13 +707,14 @@ function render(){
   sc.scrollTop = sc.scrollHeight;
 
   document.getElementById('mano').innerHTML =
-    ST.mani[p].map(c => cardHTML(c, {sel:SEL.includes(c.id)})).join('');
+    (ST.mani[p] || []).filter(Boolean).map(c => cardHTML(c, {sel:SEL.includes(c.id)})).join('');
 
   document.getElementById('tavolo').className =
     (ST.fase === 'gioca' && SEL.length >= 3 && !ST.finita) ? 'cala' : '';
   suggerimento();
 
   salva();
+  if(MP && MP.ruolo === 'host') mpInviaStato();
   ventaglio(document.getElementById('mano'), B, 0.50);
   const tav = document.getElementById('tavolo');
   const maxCol = Math.max(80, tav.clientHeight - 42);
@@ -701,7 +738,8 @@ function suggerimento(){
   if(_avviso || !ST || ST.finita) return;
   const s = SEL.length;
   let t;
-  if(ST.fase === 'pesca')      t = 'Pesca: tocca il tallone o la pila scarti';
+  if(MP && !mioTurno())        t = 'Tocca a ' + nomeDi(ST.turno) + '\u2026';
+  else if(ST.fase === 'pesca') t = 'Pesca: tocca il tallone o la pila scarti';
   else if(s === 0)             t = 'Seleziona le carte da giocare';
   else if(s === 1)             t = 'Tocca gli scarti per scartare \u00b7 una calata per attaccare';
   else if(s === 2)             t = 'Tocca una calata per attaccare (per calare servono 3 carte)';
@@ -777,18 +815,281 @@ function anima(voli){
 }
 const finVolo = n => DURATA + (n || 1) * 18 + 90;
 
+
+/* ============================================================
+   MULTIPLAYER ONLINE
+   Stesso worker degli altri FlyGames. L'host è l'unica autorità: tiene lo
+   stato, lo muta e lo ritrasmette per intero. Il guest non calcola nulla,
+   manda intenzioni e disegna quello che riceve.
+   A differenza di Briscola qui non serve ribaltare la prospettiva: lo stato
+   è già indicizzato per posto (0 = host, 1 = guest).
+   ============================================================ */
+const MP_HOST = 'fly-mp.f-castiglioni.workers.dev';
+const MP_SESS = 'burraco_mp_sessione';
+let MP = null;      // {ruolo, posto, code, ws, avversarioOn, nomeAvversario}
+let MP_POLL = null;
+
+function mpNome(){
+  try{ return localStorage.getItem('fly_nome') || ''; }catch(e){ return ''; }
+}
+function mpSalvaNome(v){
+  try{ if(v) localStorage.setItem('fly_nome', v.trim().slice(0,20)); }catch(e){}
+}
+function mpInvia(o){
+  if(MP && MP.ws && MP.ws.readyState === 1){ try{ MP.ws.send(JSON.stringify(o)); }catch(e){} }
+}
+function mpSalvaSessione(){
+  if(!MP) return;
+  try{ localStorage.setItem(MP_SESS, JSON.stringify(
+    {code:MP.code, ruolo:MP.ruolo, avv:MP.nomeAvversario || null, quando:Date.now()})); }catch(e){}
+}
+function mpSessione(){
+  try{
+    const s = JSON.parse(localStorage.getItem(MP_SESS) || 'null');
+    return (s && s.code && Date.now() - s.quando < 12*3600*1000) ? s : null;
+  }catch(e){ return null; }
+}
+function mpScordaSessione(){ try{ localStorage.removeItem(MP_SESS); }catch(e){} }
+
+/* --- stato trasmesso: la mano dell'avversario non deve viaggiare in chiaro --- */
+function mpStatoPer(destinatario){
+  const s = JSON.parse(JSON.stringify(ST));
+  if(!s.finita){                                   // a fine smazzata si scopre tutto
+    const altro = 1 - destinatario;
+    s.mani[altro] = s.mani[altro].map(() => null);
+    s.pozzetti = s.pozzetti.map(p => p.map(() => null));
+    s.mazzo = s.mazzo.map(() => null);
+  }
+  return s;
+}
+function mpInviaStato(){
+  if(MP && MP.ruolo === 'host' && ST) mpInvia({t:'state', state: mpStatoPer(1)});
+}
+
+function mpConnetti(code, ruolo){
+  MP = {ruolo, posto: ruolo === 'host' ? 0 : 1, code, ws:null,
+        avversarioOn:false, nomeAvversario:null};
+  if(ruolo === 'guest') ST = null;
+  mpSalvaSessione();
+  mpSocket();
+  modale('<h2>Stanza <span class="codice">' + code + '</span></h2>' +
+    '<p id="mpAttesa">' + (ruolo === 'host'
+      ? 'Detta questo codice all\'avversario e aspetta che entri.'
+      : 'Mi collego alla stanza\u2026') + '</p>' +
+    '<button class="g" onclick="mpEsci()">Esci dal gioco online</button>');
+}
+
+function mpSocket(){
+  if(!MP) return;
+  try{ if(MP.ws) MP.ws.close(); }catch(e){}
+  const ws = new WebSocket('wss://' + MP_HOST + '/room/' + MP.code + '/ws?role=' + MP.ruolo);
+  MP.ws = ws;
+  ws.onopen = () => mpInvia({t:'nome', nome: mpNome() || 'Giocatore'});
+  ws.onmessage = ev => { try{ mpMsg(JSON.parse(ev.data)); }catch(e){} };
+  ws.onclose = () => { if(MP && MP.ws === ws) setTimeout(() => { if(MP) mpSocket(); }, 1800); };
+  ws.onerror = () => { try{ ws.close(); }catch(e){} };
+}
+
+function mpMsg(m){
+  if(!MP) return;
+
+  if(m.t === 'nome'){
+    MP.nomeAvversario = (m.nome || '').trim().slice(0,20) || null;
+    mpSalvaSessione();
+    if(ST) render();
+    return;
+  }
+
+  if(m.t === 'presence'){
+    if(m.who === MP.ruolo) return;
+    MP.avversarioOn = m.on;
+    const a = document.getElementById('mpAttesa');
+    if(a) a.textContent = m.on ? 'Avversario collegato!' : 'In attesa dell\'avversario\u2026';
+    if(MP.ruolo === 'host' && m.on){
+      chiudiModale();
+      if(!ST || ST.finita) nuovaPartita();
+      render();
+      mpInviaStato();
+      msg((MP.nomeAvversario || 'L\'avversario') + ' \u00e8 dei nostri.');
+    }
+    if(!m.on) msg((MP.nomeAvversario || 'L\'avversario') + ' si \u00e8 disconnesso: appena rientra si riprende.');
+    return;
+  }
+
+  // il guest riceve lo stato e basta: qui non si calcola niente
+  if(m.t === 'state' && MP.ruolo === 'guest'){
+    chiudiModale(); closeOverlay();
+    const foto = fotografaTutto();
+    const primo = !ST;
+    ST = m.state; SEL = [];
+    render();
+    if(!primo) animaDaFoto(foto);
+    if(ST.finita) mostraConteggio();
+    return;
+  }
+
+  // intenzione del guest: la esegue l'host, che è l'unica autorità
+  if(m.t === 'mossa' && MP.ruolo === 'host'){
+    if(!ST || ST.finita || ST.turno !== 1) return;
+    const ids = (m.ids || []).filter(id => ST.mani[1].some(c => c.id === id));
+    const miaSel = SEL;
+    SEL = ids;
+    if(m.a === 'pesca')            pesca(m.dove);
+    else if(m.a === 'cala')        cala();
+    else if(m.a === 'attacca')     attacca(m.meld);
+    else if(m.a === 'sostituisci') sostituisci(m.meld);
+    else if(m.a === 'scarta')      scarta();
+    SEL = miaSel;
+    render();
+    return;
+  }
+}
+
+/* --- il guest non muta niente: intercetta e spedisce --- */
+function mpMossa(a, extra){
+  mpInvia(Object.assign({t:'mossa', a, ids: SEL.slice()}, extra || {}));
+  SEL = [];
+  render();
+}
+
+/* --- animazioni lato guest: confronto prima/dopo di tutta la scena --- */
+function fotografaTutto(){
+  const f = {};
+  document.querySelectorAll('[data-id]').forEach(e => { f[e.dataset.id] = rett(e); });
+  return f;
+}
+function animaDaFoto(foto){
+  const voli = [];
+  document.querySelectorAll('[data-id]').forEach(e => {
+    const da = foto[e.dataset.id];
+    if(da) voli.push({id: +e.dataset.id, da});
+  });
+  anima(voli);
+}
+
+/* --- lobby --- */
+function modale(html){
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modal').classList.add('on');
+}
+function chiudiModale(){
+  document.getElementById('modal').classList.remove('on');
+  if(MP_POLL){ clearInterval(MP_POLL); MP_POLL = null; }
+}
+
+function apriMenu(){
+  const s = mpSessione();
+  modale('<h2>Burraco</h2>' +
+    (MP ? '<p>Stanza <b>' + MP.code + '</b> \u00b7 ' +
+            (MP.avversarioOn ? 'avversario collegato' : 'avversario assente') + '</p>' : '') +
+    '<button onclick="apriLobby()">Gioca online</button>' +
+    '<button class="g" onclick="chiudiModale();nuovaSmazzataManuale()">Nuova partita</button>' +
+    (MP || s ? '<button class="g" onclick="mpEsci()">Torna a giocare in due qui</button>' : '') +
+    '<button class="g" onclick="chiudiModale()">Chiudi</button>');
+}
+
+function nuovaSmazzataManuale(){
+  if(MP && MP.ruolo === 'guest') return msg('La partita la avvia chi ha creato la stanza.');
+  scordaPartita(); nuovaPartita(); render(); mpInviaStato();
+}
+
+function apriLobby(){
+  const s = mpSessione();
+  modale('<h2>Gioca online</h2>' +
+    '<p>Uno crea la stanza e detta il codice, l\'altro lo scrive qui.</p>' +
+    '<input id="mpNome" maxlength="20" placeholder="Il tuo nome" value="' + (mpNome() || '') + '">' +
+    (s ? '<button onclick="mpRiprendi()">Rientra nella stanza ' + s.code + '</button>' : '') +
+    '<button onclick="mpCrea()">Crea una stanza</button>' +
+    '<input id="mpCodice" maxlength="4" placeholder="CODICE" autocapitalize="characters">' +
+    '<button class="g" onclick="mpEntra()">Entra col codice</button>' +
+    '<p style="margin-top:10px">Partite aperte:</p><div id="stanze"></div>' +
+    '<button class="g" onclick="chiudiModale()">Annulla</button>');
+  mpListaStanze();
+  MP_POLL = setInterval(mpListaStanze, 3000);
+}
+
+function mpLeggiNome(){
+  const e = document.getElementById('mpNome');
+  if(e && e.value.trim()) mpSalvaNome(e.value);
+  return mpNome() || 'Giocatore';
+}
+function mpRiprendi(){
+  const s = mpSessione(); if(!s) return;
+  mpLeggiNome(); chiudiModale(); mpConnetti(s.code, s.ruolo);
+}
+async function mpCrea(){
+  const n = mpLeggiNome();
+  try{
+    const r = await fetch('https://' + MP_HOST + '/create?game=burraco&name=' + encodeURIComponent(n));
+    const {code} = await r.json();
+    chiudiModale(); mpConnetti(code, 'host');
+  }catch(e){ msg('Non riesco a raggiungere il server.'); }
+}
+function mpEntra(){
+  const c = (document.getElementById('mpCodice').value || '').trim().toUpperCase();
+  if(c.length < 4) return;
+  mpLeggiNome(); chiudiModale(); mpConnetti(c, 'guest');
+}
+function mpEntraDa(code){ mpLeggiNome(); chiudiModale(); mpConnetti(code, 'guest'); }
+
+async function mpListaStanze(){
+  const box = document.getElementById('stanze');
+  if(!box){ if(MP_POLL){ clearInterval(MP_POLL); MP_POLL = null; } return; }
+  try{
+    const r = await fetch('https://' + MP_HOST + '/rooms');
+    const {rooms} = await r.json();
+    const mie = (rooms || []).filter(x => x.game === 'burraco');
+    box.innerHTML = mie.length
+      ? mie.map(x => '<button class="g" onclick="mpEntraDa(\'' + x.code + '\')">' +
+          '<span>' + x.name + '</span><span>' + x.code + '</span></button>').join('')
+      : '<p>Nessuna partita aperta.</p>';
+  }catch(e){ box.innerHTML = '<p>Rete non raggiungibile.</p>'; }
+}
+
+function mpEsci(){
+  mpScordaSessione();
+  if(MP){ try{ MP.ws && MP.ws.close(); }catch(e){} }
+  MP = null;
+  chiudiModale(); closeOverlay();
+  NOMI_G = ['Filippo','Mena'];
+  nuovaPartita(); render();
+}
+
+// iOS sospende i socket in background: al rientro riconnetto
+addEventListener('visibilitychange', () => {
+  if(!document.hidden && MP && (!MP.ws || MP.ws.readyState !== 1)) mpSocket();
+});
+
+/* ---------- GESTI ---------- */
+// Unico punto in cui si decide chi puo' agire e chi invece deve solo chiedere.
+function consenti(){
+  if(!ST || ST.finita) return false;
+  if(MP && !mioTurno()){ msg('Tocca a ' + nomeDi(ST.turno) + '.'); return false; }
+  return true;
+}
+const guest = () => MP && MP.ruolo === 'guest';
+
+function uiPesca(dove){       if(consenti()){ guest() ? mpMossa('pesca', {dove}) : pesca(dove); } }
+function uiCala(){            if(consenti()){ guest() ? mpMossa('cala') : cala(); } }
+function uiScarta(){          if(consenti()){ guest() ? mpMossa('scarta') : scarta(); } }
+function uiAttacca(id){       if(consenti()){ guest() ? mpMossa('attacca', {meld:id}) : attacca(id); } }
+function uiSostituisci(id){   if(consenti()){ guest() ? mpMossa('sostituisci', {meld:id}) : sostituisci(id); } }
+
 /* ---------- EVENTI ---------- */
 function bind(){
   document.querySelectorAll('#mano .c').forEach(el => el.onclick = () => {
+    if(MP && !mioTurno()) return msg('Tocca a ' + nomeDi(ST.turno) + '.');
     const id = +el.dataset.id;
     SEL.includes(id) ? SEL = SEL.filter(x => x !== id) : SEL.push(id);
     render();
   });
-  document.querySelectorAll('[data-pesca]').forEach(el => el.onclick = () => pesca(el.dataset.pesca));
+  document.querySelectorAll('[data-pesca]').forEach(el => el.onclick = () => uiPesca(el.dataset.pesca));
+  const men = document.getElementById('hMenu');
+  if(men) men.onclick = apriMenu;
   document.getElementById('scarti').onclick = () => {
     if(ST.finita) return;
-    if(ST.fase === 'pesca') return pesca('scarti');
-    if(SEL.length === 1) return scarta();
+    if(ST.fase === 'pesca') return uiPesca('scarti');
+    if(SEL.length === 1) return uiScarta();
     msg(SEL.length ? 'Per scartare seleziona una carta sola.' : 'Seleziona la carta da scartare.');
   };
   document.getElementById('tavolo').onclick = () => {
@@ -796,17 +1097,17 @@ function bind(){
     if(ST.fase === 'pesca') return msg('Prima devi pescare.');
     if(!SEL.length) return;
     if(SEL.length < 3) return msg('Per calare servono almeno 3 carte.');
-    cala();
+    uiCala();
   };
   document.querySelectorAll('.meld').forEach(el => el.onclick = (ev) => {
     ev.stopPropagation();                       // non deve valere anche come "cala"
     const id = +el.dataset.meld;
     if(!SEL.length) return;
-    if(SEL.length === 1) {
-      const arr = ST.melds[io()], m = arr.find(x => x.id === id);
-      if(m && m.wild >= 0 && !riattacca(m, selCarte())) return sostituisci(id);
+    if(SEL.length === 1){
+      const arr = ST.melds[mio()], m = arr.find(x => x.id === id);
+      if(m && m.wild >= 0) return uiSostituisci(id);
     }
-    attacca(id);
+    uiAttacca(id);
   });
 }
 
@@ -822,8 +1123,8 @@ if(salvata && !salvata.ST.finita){
   render();
   const q = ST.mani[0].length + ST.mani[1].length;
   overlay('Partita in corso',
-    'Tocca a ' + NOMI_G[ST.turno] + ' (' + (ST.fase === 'pesca' ? 'deve pescare' : 'sta giocando') + ').\n' +
-    'Punti ' + NOMI_G[0] + ' ' + ST.punti[0] + ' \u00b7 ' + NOMI_G[1] + ' ' + ST.punti[1] +
+    'Tocca a ' + nomeDi(ST.turno) + ' (' + (ST.fase === 'pesca' ? 'deve pescare' : 'sta giocando') + ').\n' +
+    'Punti ' + nomeDi(0) + ' ' + ST.punti[0] + ' \u00b7 ' + nomeDi(1) + ' ' + ST.punti[1] +
     ' \u00b7 tallone ' + ST.mazzo.length + ' \u00b7 ' + q + ' carte in mano.',
     'Riprendi', () => { closeOverlay(); render(); },
     'Ricomincia da capo', () => { scordaPartita(); nuovaPartita(); closeOverlay(); render(); });
@@ -834,9 +1135,14 @@ if(salvata && !salvata.ST.finita){
   overlay('Burraco',
     (salvata ? 'Nuova smazzata, punteggio mantenuto.\n\n' :
                'Prototipo hot-seat: si gioca in due sullo stesso telefono.\nNiente CPU, niente online (per ora).\n\n') +
-    'Inizia ' + NOMI_G[0] + '.',
+    'Inizia ' + nomeDi(0) + '.',
     'Comincia', () => { closeOverlay(); render(); });
 }
+const _sess = mpSessione();
+if(_sess) setTimeout(() => overlay('Partita online',
+  'Eri nella stanza ' + _sess.code + (_sess.avv ? ' con ' + _sess.avv : '') + '.',
+  'Rientra', () => { closeOverlay(); mpConnetti(_sess.code, _sess.ruolo); },
+  'Gioca qui in due', () => { mpScordaSessione(); closeOverlay(); render(); }), 40);
 </script>
 </body>
 </html>
