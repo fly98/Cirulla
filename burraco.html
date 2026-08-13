@@ -425,6 +425,16 @@ function attacca(meldId){
   SEL = []; dopoCalata(); render(); anima(voli);
 }
 
+// Vero solo se la carta e' esattamente quella che il jolly sta rappresentando.
+// Serve a distinguere "sostituisco il jolly" da "attacco una carta qualsiasi".
+function combaciaJolly(m, c){
+  if(!m || m.wild < 0 || !c) return false;
+  return m.tipo === 'scala'
+    ? (c.s === m.seme && (c.r === m.vals[m.wild] ||
+        (c.r === 1 && (m.vals[m.wild] === 1 || m.vals[m.wild] === 14))))
+    : (c.r === m.rango);
+}
+
 // Sostituisce la pinella/jolly di una scala con la carta naturale corrispondente.
 function sostituisci(meldId){
   const sel = selCarte();
@@ -433,10 +443,7 @@ function sostituisci(meldId){
   const i = arr.findIndex(x => x.id === meldId);
   if(i < 0 || arr[i].wild < 0) return msg('Lì non c\'è nessun jolly da sostituire.');
   const m = arr[i], w = m.wild, c = sel[0];
-  const ok = m.tipo === 'scala'
-    ? (c.s === m.seme && (c.r === m.vals[w] || (c.r === 1 && (m.vals[w] === 1 || m.vals[w] === 14))))
-    : (c.r === m.rango);
-  if(!ok) return msg('Quella carta non corrisponde al jolly.');
+  if(!combaciaJolly(m, c)) return msg('Quella carta non corrisponde al jolly.');
   const wild = m.carte[w];
   const voli = cattura([c], '#mano').concat(cattura([wild], '#tavolo'));
   m.carte[w] = c; m.wild = -1;
@@ -1105,8 +1112,8 @@ function bind(){
     const id = +el.dataset.meld;
     if(!SEL.length) return;
     if(SEL.length === 1){
-      const arr = ST.melds[mio()], m = arr.find(x => x.id === id);
-      if(m && m.wild >= 0) return uiSostituisci(id);
+      const m = ST.melds[mio()].find(x => x.id === id);
+      if(combaciaJolly(m, selCarte()[0])) return uiSostituisci(id);
     }
     uiAttacca(id);
   });
