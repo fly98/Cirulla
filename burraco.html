@@ -821,13 +821,26 @@ function catturaDaTallone(carta){
 
 function anima(voli){
   const cont = document.getElementById('voli');
-  cont.innerHTML = '';                    // i voli precedenti sono superati: via
-  voli.forEach((v, k) => {
+  // Prima si decide cosa vola davvero: se non si muove niente non bisogna
+  // azzerare i voli in corso, altrimenti si troncano a metà.
+  const utili = [];
+  voli.forEach(v => {
     const el = dov(v.id);
     if(!el || !v.da) return;
     const a = rett(el);
     if(Math.abs(a.x - v.da.x) < 1 && Math.abs(a.y - v.da.y) < 1) return;   // non si è mossa
+    utili.push({el, da: v.da, a});
+  });
+  if(!utili.length) return;
+  cont.innerHTML = '';                    // i voli precedenti sono superati: via
+  utili.forEach((v, k) => {
+    const el = v.el, a = v.a;
     const g = el.cloneNode(true);
+    // Il clone NON deve restare identificabile come carta: altrimenti
+    // fotografaTutto() e animaDaFoto() lo ritrovano e rianimano due volte
+    // lo stesso movimento.
+    g.removeAttribute('data-id');
+    g.querySelectorAll('[data-id]').forEach(x => x.removeAttribute('data-id'));
     g.style.cssText = 'position:absolute;left:' + v.da.x + 'px;top:' + v.da.y + 'px;' +
       'width:' + v.da.w + 'px;height:' + v.da.h + 'px;opacity:1;z-index:' + (40 + k);
     cont.appendChild(g);
@@ -909,7 +922,7 @@ function mpInviaStato(forza){
 
 function mpConnetti(code, ruolo){
   MP = {ruolo, posto: ruolo === 'host' ? 0 : 1, code, ws:null,
-        avversarioOn:false, nomeAvversario:null};
+        avversarioOn:false, nomeAvversario:null, ultimaFirma:null};
   if(ruolo === 'guest') ST = null;
   mpSalvaSessione();
   mpSocket();
@@ -959,6 +972,14 @@ function mpMsg(m){
 
   // il guest riceve lo stato e basta: qui non si calcola niente
   if(m.t === 'state' && MP.ruolo === 'guest'){
+    // L'host rimanda lo stato anche solo per confermare una mossa: se e' identico
+    // non va rianimato, o si ridisegna sopra un'animazione ancora in corso.
+    const firma = JSON.stringify(m.state);
+    if(firma === MP.ultimaFirma){
+      if(SEL.length){ SEL = []; render(); }      // mossa rifiutata: tolgo la selezione
+      return;
+    }
+    MP.ultimaFirma = firma;
     chiudiModale(); closeOverlay();
     const foto = fotografaTutto();
     const primo = !ST;
@@ -997,25 +1018,41 @@ function mpMossa(a, extra){
 }
 
 /* --- animazioni lato guest: confronto prima/dopo di tutta la scena --- */
+// In quale area del tavolo si trova una carta. Serve a distinguere uno
+// spostamento vero da un semplice riassetto: pescando, la mano si riordina e
+// tutte le carte cambiano posizione, ma non e' quello che si vuole animare.
+const AREE = '#mano, #scartiFan, #tavolo, #pTallone';
+const areaDi = el => { const z = el.closest(AREE); return z ? z.id : ''; };
+const carteInScena = () => document.querySelectorAll(
+  '#mano [data-id], #scartiFan [data-id], #tavolo [data-id], #pTallone [data-id]');
+
 function fotografaTutto(){
   const f = {};
-  document.querySelectorAll('[data-id]').forEach(e => { f[e.dataset.id] = rett(e); });
+  carteInScena().forEach(e => { f[e.dataset.id] = {r: rett(e), a: areaDi(e)}; });
   return f;
 }
+
 function animaDaFoto(foto){
   const voli = [];
-  // Le carte che prima erano nella mano dell'avversario non hanno un "prima":
-  // le faccio partire dalla sua metà del tavolo, così lo scarto si vede.
+  // Chi prima stava nella mano oscurata dell'avversario non ha un "prima":
+  // parte dalla sua meta' tavolo se e' roba sua, dal tallone se e' arrivata a me.
   const zAvv = document.querySelector('#tavolo .zona:not(.mia)');
-  const r = zAvv ? rett(zAvv) : null;
-  document.querySelectorAll('[data-id]').forEach(e => {
+  const rAvv = zAvv ? rett(zAvv) : null;
+  const tal = document.querySelector('#pTallone .c');
+  const rTal = tal ? rett(tal) : null;
+
+  carteInScena().forEach(e => {
     const id = +e.dataset.id;
-    let da = foto[id];
-    if(!da && r){
-      const q = rett(e);
-      da = {x: r.x + r.w / 2 - q.w / 2, y: r.y, w: q.w, h: q.h};
+    const area = areaDi(e);
+    const p = foto[id];
+    if(p){
+      if(p.a === area) return;            // stessa area: e' solo riassetto, non vola
+      voli.push({id, da: p.r});
+      return;
     }
-    if(da) voli.push({id, da});
+    const q = rett(e);
+    const org = area === '' || area === 'mano' ? rTal : rAvv;   // comparsa dal nulla
+    if(org) voli.push({id, da:{x: org.x + (org.w - q.w) / 2, y: org.y, w: q.w, h: q.h}});
   });
   anima(voli);
 }
