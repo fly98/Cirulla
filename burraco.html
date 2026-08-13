@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-9';
+const VERSIONE = '13ago-10';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -378,8 +378,12 @@ function tipoBurraco(m){
     if(m.tipo === 'gruppo' && n >= 8) return ['super', CFG.PT_SUPER];
     return ['pulito', CFG.PT_PULITO];
   }
-  // semipulito: la matta precede o segue almeno sette carte, oppure gruppo di 8+
-  if(m.tipo === 'scala' && n >= 8 && (m.wild === 0 || m.wild === n - 1))
+  /* Semipulito: la matta deve PRECEDERE O SEGUIRE almeno sette carte. Non
+     significa che stia a un'estremita': puo' stare in mezzo, purche' da un lato
+     ne abbia sette di fila. Esempio: 3 4 [5] 6 7 8 9 10 J Q e' semipulito,
+     perche' dopo la matta ce ne sono sette. */
+  const prima = m.wild, dopo = n - 1 - m.wild;
+  if(m.tipo === 'scala' && (prima >= 7 || dopo >= 7))
     return ['semipulito', CFG.PT_SEMIPULITO];
   if(m.tipo === 'gruppo' && n >= 8) return ['semipulito', CFG.PT_SEMIPULITO];
   return ['sporco', CFG.PT_SPORCO];
