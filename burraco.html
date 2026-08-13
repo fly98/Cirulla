@@ -800,6 +800,7 @@ function catturaDaTallone(carta){
 
 function anima(voli){
   const cont = document.getElementById('voli');
+  cont.innerHTML = '';                    // i voli precedenti sono superati: via
   voli.forEach((v, k) => {
     const el = dov(v.id);
     if(!el || !v.da) return;
@@ -811,14 +812,15 @@ function anima(voli){
     cont.appendChild(g);
     el.style.opacity = '0';
     const rit = k * 18;
-    setTimeout(() => {
+    const parti = () => {
       g.style.transition = 'transform ' + DURATA + 'ms ' + CURVA + ', ' +
                            'width ' + DURATA + 'ms ' + CURVA + ', ' +
                            'height ' + DURATA + 'ms ' + CURVA;
       g.style.transform = 'translate(' + (a.x - v.da.x) + 'px,' + (a.y - v.da.y) + 'px)';
       g.style.width = a.w + 'px';
       g.style.height = a.h + 'px';
-    }, 20 + rit);
+    };
+    requestAnimationFrame(() => rit ? setTimeout(parti, rit) : parti());
     setTimeout(() => { g.remove(); if(el.isConnected) el.style.opacity = ''; },
                DURATA + rit + 70);
   });
@@ -872,8 +874,16 @@ function mpStatoPer(destinatario){
   }
   return s;
 }
-function mpInviaStato(){
-  if(MP && MP.ruolo === 'host' && ST) mpInvia({t:'state', state: mpStatoPer(1)});
+let _ultimoInvio = '';
+function mpInviaStato(forza){
+  if(!(MP && MP.ruolo === 'host' && ST)) return;
+  const st = mpStatoPer(1);
+  const firma = JSON.stringify(st);
+  // render() gira anche per un resize o un messaggio: senza questo il guest
+  // riceverebbe stati identici e rianimerebbe la scena a vuoto.
+  if(!forza && firma === _ultimoInvio) return;
+  _ultimoInvio = firma;
+  mpInvia({t:'state', state: st});
 }
 
 function mpConnetti(code, ruolo){
@@ -951,15 +961,18 @@ function mpMsg(m){
     else if(m.a === 'scarta')      scarta();
     SEL = miaSel;
     render();
+    mpInviaStato(true);      // sempre una risposta, anche se la mossa era rifiutata
     return;
   }
 }
 
 /* --- il guest non muta niente: intercetta e spedisce --- */
 function mpMossa(a, extra){
+  // Niente render() qui: ridisegnare adesso farebbe "saltare" le carte
+  // deselezionate per poi rianimarle un attimo dopo. Si aspetta lo stato,
+  // che l'host rimanda sempre, anche se la mossa non era valida.
   mpInvia(Object.assign({t:'mossa', a, ids: SEL.slice()}, extra || {}));
-  SEL = [];
-  render();
+  msg('\u2026');
 }
 
 /* --- animazioni lato guest: confronto prima/dopo di tutta la scena --- */
@@ -970,9 +983,18 @@ function fotografaTutto(){
 }
 function animaDaFoto(foto){
   const voli = [];
+  // Le carte che prima erano nella mano dell'avversario non hanno un "prima":
+  // le faccio partire dalla sua metà del tavolo, così lo scarto si vede.
+  const zAvv = document.querySelector('#tavolo .zona:not(.mia)');
+  const r = zAvv ? rett(zAvv) : null;
   document.querySelectorAll('[data-id]').forEach(e => {
-    const da = foto[e.dataset.id];
-    if(da) voli.push({id: +e.dataset.id, da});
+    const id = +e.dataset.id;
+    let da = foto[id];
+    if(!da && r){
+      const q = rett(e);
+      da = {x: r.x + r.w / 2 - q.w / 2, y: r.y, w: q.w, h: q.h};
+    }
+    if(da) voli.push({id, da});
   });
   anima(voli);
 }
