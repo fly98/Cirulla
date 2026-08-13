@@ -178,7 +178,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-10';
+const VERSIONE = '13ago-11';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -917,17 +917,23 @@ function anima(voli){
   // azzerare i voli in corso, altrimenti si troncano a metà.
   const utili = [];
   voli.forEach(v => {
-    const el = dov(v.id);
-    if(!el || !v.da) return;
-    const a = rett(el);
+    if(!v.da) return;
+    // Un volo puo' riguardare una carta ancora a schermo, oppure una che e'
+    // appena finita in una mano nascosta: in quel caso resta solo il suo aspetto.
+    const el = v.html ? null : dov(v.id);
+    if(!el && !v.html) return;
+    const a = v.a || (el ? rett(el) : null);
+    if(!a) return;
     if(Math.abs(a.x - v.da.x) < 1 && Math.abs(a.y - v.da.y) < 1) return;   // non si è mossa
-    utili.push({el, da: v.da, a});
+    utili.push({el, html: v.html, da: v.da, a});
   });
   if(!utili.length) return;
   cont.innerHTML = '';                    // i voli precedenti sono superati: via
   utili.forEach((v, k) => {
     const el = v.el, a = v.a;
-    const g = el.cloneNode(true);
+    let g;
+    if(el) g = el.cloneNode(true);
+    else { const t = document.createElement('div'); t.innerHTML = v.html; g = t.firstElementChild; }
     // Il clone NON deve restare identificabile come carta: altrimenti
     // fotografaTutto() e animaDaFoto() lo ritrovano e rianimano due volte
     // lo stesso movimento.
@@ -936,7 +942,7 @@ function anima(voli){
     g.style.cssText = 'position:absolute;left:' + v.da.x + 'px;top:' + v.da.y + 'px;' +
       'width:' + v.da.w + 'px;height:' + v.da.h + 'px;opacity:1;z-index:' + (40 + k);
     cont.appendChild(g);
-    el.style.opacity = '0';
+    if(el) el.style.opacity = '0';
     const rit = k * 18;
     const parti = () => {
       g.style.transition = 'transform ' + DURATA + 'ms ' + CURVA + ', ' +
@@ -947,7 +953,7 @@ function anima(voli){
       g.style.height = a.h + 'px';
     };
     requestAnimationFrame(() => rit ? setTimeout(parti, rit) : parti());
-    setTimeout(() => { g.remove(); if(el.isConnected) el.style.opacity = ''; },
+    setTimeout(() => { g.remove(); if(el && el.isConnected) el.style.opacity = ''; },
                DURATA + rit + 70);
   });
 }
@@ -1141,21 +1147,30 @@ const carteInScena = () => document.querySelectorAll(
 
 function fotografaTutto(){
   const f = {};
-  carteInScena().forEach(e => { f[e.dataset.id] = {r: rett(e), a: areaDi(e)}; });
+  carteInScena().forEach(e => {
+    f[e.dataset.id] = {r: rett(e), a: areaDi(e), html: e.outerHTML};
+  });
   return f;
+}
+// Punto da cui arrivano (e verso cui spariscono) le carte dell'avversario.
+function puntoAvversario(){
+  const z = document.querySelector('#tavolo .zona:not(.mia)');
+  if(!z) return null;
+  const r = rett(z);
+  return {x: r.x + r.w / 2, y: r.y + 14};
 }
 
 function animaDaFoto(foto){
   const voli = [];
-  // Chi prima stava nella mano oscurata dell'avversario non ha un "prima":
-  // parte dalla sua meta' tavolo se e' roba sua, dal tallone se e' arrivata a me.
-  const zAvv = document.querySelector('#tavolo .zona:not(.mia)');
-  const rAvv = zAvv ? rett(zAvv) : null;
+  const pAvv = puntoAvversario();
   const tal = document.querySelector('#pTallone .c');
   const rTal = tal ? rett(tal) : null;
+  const visti = new Set();
 
+  // 1) carte a schermo: si muovono, o compaiono dal nulla
   carteInScena().forEach(e => {
     const id = +e.dataset.id;
+    visti.add(String(id));
     const area = areaDi(e);
     const p = foto[id];
     if(p){
@@ -1164,10 +1179,36 @@ function animaDaFoto(foto){
       return;
     }
     const q = rett(e);
-    const org = area === '' || area === 'mano' ? rTal : rAvv;   // comparsa dal nulla
-    if(org) voli.push({id, da:{x: org.x + (org.w - q.w) / 2, y: org.y, w: q.w, h: q.h}});
+    // comparsa dal nulla: dal tallone se arriva a me, dalla meta' dell'avversario se e' sua
+    if(area === 'mano' && rTal) voli.push({id, da:{x: rTal.x, y: rTal.y, w: rTal.w, h: rTal.h}});
+    else if(pAvv) voli.push({id, da:{x: pAvv.x - q.w / 2, y: pAvv.y, w: q.w, h: q.h}});
   });
+
+  // 2) carte sparite: sono finite in una mano nascosta, se ne vanno verso di lui
+  if(pAvv) for(const id in foto){
+    if(visti.has(id)) continue;
+    const p = foto[id];
+    voli.push({id: +id, html: p.html, da: p.r,
+               a: {x: pAvv.x - p.r.w / 2, y: pAvv.y, w: p.r.w, h: p.r.h}});
+  }
   anima(voli);
+}
+
+// Esegue una mossa dell'avversario mostrando il movimento delle carte.
+function conFoto(azione){
+  const foto = fotografaTutto();
+  azione();
+  animaDaFoto(foto);
+}
+// Il computer pesca dal tallone: la carta sparisce nella sua mano, quindi
+// non esiste nel documento. Si mostra un dorso che vola via.
+function volaDorsoVersoAvversario(){
+  const tal = document.querySelector('#pTallone .c');
+  const pAvv = puntoAvversario();
+  if(!tal || !pAvv) return;
+  const r = rett(tal);
+  anima([{id:-1, html: tal.outerHTML, da: r,
+          a: {x: pAvv.x - r.w / 2, y: pAvv.y, w: r.w, h: r.h}}]);
 }
 
 // Fascia fissa: un messaggio a tempo verrebbe coperto dai suggerimenti e una
@@ -1457,7 +1498,9 @@ function cpuPesca(){
     const zavorra = conPila.resto.reduce((t, c) => t + valCarta(c), 0) * 0.5;
     prendiPila = (valoreCalate(conPila) - senza - zavorra) > (CPU.livello === 'facile' ? 60 : 15);
   }
-  pesca(prendiPila && ST.scarti.length ? 'scarti' : 'mazzo');
+  const dalla = prendiPila && ST.scarti.length ? 'scarti' : 'mazzo';
+  conFoto(() => pesca(dalla));
+  if(dalla === 'mazzo') volaDorsoVersoAvversario();
 }
 
 /* --- attacchi e calate --- */
@@ -1472,9 +1515,9 @@ function cpuAttacca(){
       // al livello alto la matta non si spreca su una combinazione qualsiasi
       if(CPU.livello === 'difficile' && puoWild(c) && !isBurraco(nm)) continue;
       SEL = [c.id];
-      attacca(m.id);
+      conFoto(() => attacca(m.id));
       SEL = [];
-      return cpuAttacca();
+      return setTimeout(cpuAttacca, 260);
     }
   }
 }
@@ -1492,11 +1535,11 @@ function cpuCala(){
     if(CPU.livello === 'difficile' && m.carte.length < 4 && ST.mazzo.length > 25 &&
        !ST.melds[1].length) continue;
     SEL = ids;
-    cala();
+    conFoto(() => cala());
     SEL = [];
   }
   cpuAttacca();
-  setTimeout(cpuScarta, 650);
+  setTimeout(cpuScarta, 900);
 }
 
 /* --- scarto: la carta meno utile a me e meno utile a lui --- */
@@ -1530,7 +1573,7 @@ function cpuScarta(){
   for(const c of ord){
     const prima = ST.scarti.length;
     SEL = [c.id];
-    scarta();
+    conFoto(() => scarta());
     SEL = [];
     if(ST.scarti.length > prima) return;         // riuscito
   }
