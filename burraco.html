@@ -146,6 +146,7 @@ const CFG = {
   PT_SEMIPULITO: 150,   // matta in testa o in coda a 7+ carte, o gruppo di 8+ con matta
   PT_SPORCO: 100,
   PT_CHIUSURA: 100, PEN_POZZETTO: 100,
+  SALVA_DA: 4,          // turni giocati prima di conservare la partita (2 a testa)
   ASSO_ALTO: true, ASSO_BASSO: true,
   MAX_WILD: 1,               // wild per combinazione
   GRUPPO_SEMI_RIPETUTI: true // permette il burraco di gruppo
@@ -336,6 +337,9 @@ const CHIAVE = 'burraco_stato_v1';
 
 function salva(){
   if(!ST || (MP && MP.ruolo === 'guest')) return;   // stato oscurato: non va conservato
+  // Una partita appena distribuita non vale la pena di essere ripresa: si
+  // conserva solo quando è davvero avviata.
+  if(!ST.finita && (ST.turni || 0) < CFG.SALVA_DA) return;
   try{
     localStorage.setItem(CHIAVE, JSON.stringify({ST, uid:_uid, v:1}));
   }catch(e){ /* spazio pieno o navigazione privata: si gioca lo stesso */ }
@@ -355,7 +359,7 @@ function nuovaPartita(punti){
   const m = nuovoMazzo();
   ST = {
     mani:[[], []], melds:[[], []], pozzetti:[], scarti:[], mazzo:[],
-    turno:0, fase:'pesca', pozzettoPreso:[false, false],
+    turno:0, fase:'pesca', pozzettoPreso:[false, false], turni:0,
     punti: punti || [0, 0], chiusuraDi:null, finita:false, meldId:0
   };
   for(let p = 0; p < 2; p++) for(let i = 0; i < CFG.MANO; i++) ST.mani[p].push(m.pop());
@@ -367,6 +371,7 @@ function nuovaPartita(punti){
   ST.mazzo = m;
   ST.mani.forEach(ordina);
   SEL = [];
+  scordaPartita();      // la vecchia non serve più
   salva();
 }
 
@@ -499,6 +504,7 @@ function scarta(){
 }
 
 function passaTurno(nota){
+  ST.turni = (ST.turni || 0) + 1;
   ST.turno = 1 - ST.turno;
   ST.fase = 'pesca';
   render();
@@ -728,11 +734,15 @@ function render(){
   if(MP && MP.ruolo === 'host') mpInviaStato();
   ventaglio(document.getElementById('mano'), B, 0.50);
   const tav = document.getElementById('tavolo');
-  const maxCol = Math.max(80, tav.clientHeight - 42);
-  // le colonne devono starci in mezzo tavolo: se sono tante, stringo la carta
-  const perMeta = Math.max(1, Math.max(ST.melds[0].length, ST.melds[1].length));
-  const larghDisp = (tav.clientWidth / 2 - 16) / Math.min(perMeta, 4) - 7;
-  const wCol = Math.max(22, Math.min(B * 0.80, larghDisp));
+  const perMeta = Math.max(1, ST.melds[0].length, ST.melds[1].length);
+  const meta = tav.clientWidth / 2 - 14;
+  // Su schermo stretto le carte in tavola risultavano illeggibili: le ingrandisco
+  // e lascio che le calate vadano a capo, invece di stringerle per tenerle in fila.
+  const fatt = B < 60 ? 1.05 : 0.80;
+  const wCol = Math.max(24, Math.min(B * fatt, meta - 12));
+  const perRigaCalate = Math.max(1, Math.floor(meta / (wCol + 11)));
+  const righe = Math.max(1, Math.ceil(perMeta / perRigaCalate));
+  const maxCol = Math.max(70, (tav.clientHeight - 34) / righe - 10);
   tav.querySelectorAll('.meld .col').forEach(c => colonna(c, wCol, maxCol));
   bind();
 }
@@ -1017,8 +1027,16 @@ function apriMenu(){
             (MP.avversarioOn ? 'avversario collegato' : 'avversario assente') + '</p>' : '') +
     '<button onclick="apriLobby()">Gioca online</button>' +
     '<button class="g" onclick="chiudiModale();nuovaSmazzataManuale()">Nuova partita</button>' +
+    (ripristina() ? '<button class="g" onclick="cancellaSalvataggio()">' +
+       'Cancella la partita salvata</button>' : '') +
     (MP || s ? '<button class="g" onclick="mpEsci()">Torna a giocare in due qui</button>' : '') +
     '<button class="g" onclick="chiudiModale()">Chiudi</button>');
+}
+
+function cancellaSalvataggio(){
+  scordaPartita();
+  chiudiModale();
+  msg('Partita salvata cancellata.');
 }
 
 function nuovaSmazzataManuale(){
@@ -1035,7 +1053,8 @@ function apriLobby(){
     '<button onclick="mpCrea()">Crea una stanza</button>' +
     '<input id="mpCodice" maxlength="4" placeholder="CODICE" autocapitalize="characters">' +
     '<button class="g" onclick="mpEntra()">Entra col codice</button>' +
-    '<p style="margin-top:10px">Partite aperte:</p><div id="stanze"></div>' +
+    '<p style="margin-top:10px">Partite aperte (\u2715 per toglierle dall\'elenco):</p>' +
+    '<div id="stanze"></div>' +
     '<button class="g" onclick="chiudiModale()">Annulla</button>');
   mpListaStanze();
   MP_POLL = setInterval(mpListaStanze, 3000);
@@ -1065,16 +1084,44 @@ function mpEntra(){
 }
 function mpEntraDa(code){ mpLeggiNome(); chiudiModale(); mpConnetti(code, 'guest'); }
 
+function stanzeNascoste(){
+  try{ return JSON.parse(localStorage.getItem('burraco_stanze_nascoste') || '[]'); }
+  catch(e){ return []; }
+}
+function nascondiStanza(code){
+  const n = stanzeNascoste();
+  if(!n.includes(code)) n.push(code);
+  try{ localStorage.setItem('burraco_stanze_nascoste', JSON.stringify(n.slice(-60))); }catch(e){}
+  mpListaStanze();
+}
+
 async function mpListaStanze(){
   const box = document.getElementById('stanze');
   if(!box){ if(MP_POLL){ clearInterval(MP_POLL); MP_POLL = null; } return; }
   try{
-    const r = await fetch('https://' + MP_HOST + '/rooms');
+    // Senza anti-cache Safari serve una lista vecchia, e i due dispositivi
+    // finiscono per vedere partite diverse.
+    const r = await fetch('https://' + MP_HOST + '/rooms?t=' + Date.now(), {cache:'no-store'});
     const {rooms} = await r.json();
-    const mie = (rooms || []).filter(x => x.game === 'burraco');
+    const via = stanzeNascoste();
+    const ora = Date.now();
+    const mie = (rooms || [])
+      .filter(x => x.game === 'burraco' && !via.includes(x.code))
+      .filter(x => ora - (x.created || 0) < 6 * 3600 * 1000)
+      .sort((a, b) => (b.created || 0) - (a.created || 0));
+    const eta = t => {
+      const m = Math.round((ora - t) / 60000);
+      return m < 1 ? 'ora' : m < 60 ? m + ' min fa' : Math.round(m / 60) + ' h fa';
+    };
     box.innerHTML = mie.length
-      ? mie.map(x => '<button class="g" onclick="mpEntraDa(\'' + x.code + '\')">' +
-          '<span>' + x.name + '</span><span>' + x.code + '</span></button>').join('')
+      ? mie.map(x =>
+          '<div style="display:flex;gap:5px;align-items:stretch">' +
+          '<button class="g" style="flex:1" onclick="mpEntraDa(\'' + x.code + '\')">' +
+            '<span>' + x.name + '</span>' +
+            '<span style="opacity:.6">' + eta(x.created || ora) + '</span>' +
+            '<span>' + x.code + '</span></button>' +
+          '<button class="g" style="width:44px;flex:0 0 auto" title="Nascondi" ' +
+            'onclick="nascondiStanza(\'' + x.code + '\')">\u2715</button></div>').join('')
       : '<p>Nessuna partita aperta.</p>';
   }catch(e){ box.innerHTML = '<p>Rete non raggiungibile.</p>'; }
 }
