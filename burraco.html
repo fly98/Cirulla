@@ -45,10 +45,14 @@ body{
 .c.wild::after{content:"";position:absolute;inset:0;border:2px dashed var(--jolly);border-radius:5px;opacity:.7}
 
 /* ---------- LAYOUT ---------- */
-header{padding:calc(.55em + env(safe-area-inset-top)) .6em .45em;display:flex;gap:9px;
-  align-items:center;justify-content:space-between;
-  /* Fondo OPACO, non trasparente: sotto la barra di stato iOS sfoca quello che
-     ci passa dietro, e col fondo semitrasparente a sfocarsi era il testo. */
+/* iOS sfoca il contenuto vicino al margine superiore, e la sfocatura sfuma
+   oltre la barra di stato: qualunque testo messo li' risulta appannato e non
+   c'e' modo di disattivarla dalla pagina. L'unica difesa e' tenere il testo
+   sotto quella fascia. --franchigia e' quanto si scende: se sul telefono
+   risultasse ancora appannato, basta alzarla. */
+:root{--franchigia:3.4em}
+header{padding:calc(env(safe-area-inset-top) + var(--franchigia)) .6em .45em;
+  display:flex;gap:9px;align-items:center;justify-content:space-between;
   background:#0a3122;flex:0 0 auto;
   /* svincolato dalla scala delle carte: sul telefono restava minuscolo */
   font-size:clamp(12.5px,3.2vw,21px)}
@@ -165,7 +169,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-1';
+const VERSIONE = '13ago-2';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
