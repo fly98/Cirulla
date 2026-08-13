@@ -175,7 +175,7 @@ button.g{background:rgba(255,255,255,.16);color:#fff}
 
 /* Numero di versione: va alzato a ogni pubblicazione. Serve a capire a colpo
    d'occhio se il telefono sta ancora servendo una copia vecchia dalla cache. */
-const VERSIONE = '13ago-3';
+const VERSIONE = '13ago-4';
 
 /* ---------- CONFIGURAZIONE REGOLE (variante di casa) ---------- */
 const CFG = {
@@ -385,7 +385,33 @@ const bonusBurraco = m => { const t = tipoBurraco(m); return t ? t[1] : 0; };
 /* ============================================================
    STATO E SALVATAGGIO
    ============================================================ */
-const CHIAVE = 'burraco_stato_v1';
+/* Ogni partita ha una chiave: 'locale' per quella sullo stesso dispositivo,
+   'mp:CODICE' per ognuna delle stanze online. Lo stato sta sotto la sua chiave e
+   l'elenco delle partite avviate e' tenuto qui, non sul server: cosi' resta
+   disponibile per giorni, anche quando la stanza sul server si e' estinta. */
+const REGISTRO = 'burraco_partite_v1';
+const STATO_PRE = 'burraco_stato:';
+const chiave = () => MP ? 'mp:' + MP.code : 'locale';
+
+function partite(){
+  try{ return JSON.parse(localStorage.getItem(REGISTRO) || '[]'); }catch(e){ return []; }
+}
+function scriviRegistro(a){
+  try{ localStorage.setItem(REGISTRO, JSON.stringify(a.slice(0, 40))); }catch(e){}
+}
+function registra(dati){
+  const a = partite();
+  const i = a.findIndex(x => x.chiave === dati.chiave);
+  const ora = Date.now();
+  if(i >= 0) a[i] = Object.assign(a[i], dati, {ultima: ora});
+  else a.unshift(Object.assign({creata: ora, ultima: ora}, dati));
+  scriviRegistro(a);
+}
+function dimentica(k){
+  scriviRegistro(partite().filter(x => x.chiave !== k));
+  try{ localStorage.removeItem(STATO_PRE + k); }catch(e){}
+  if(document.getElementById('elencoPartite')) apriLobby();
+}
 
 function salva(){
   if(!ST || (MP && MP.ruolo === 'guest')) return;   // stato oscurato: non va conservato
@@ -393,18 +419,26 @@ function salva(){
   // conserva solo quando è davvero avviata.
   if(!ST.finita && (ST.turni || 0) < CFG.SALVA_DA) return;
   try{
-    localStorage.setItem(CHIAVE, JSON.stringify({ST, uid:_uid, v:1}));
+    localStorage.setItem(STATO_PRE + chiave(), JSON.stringify({ST, uid:_uid, v:1}));
+    registra({chiave: chiave(), code: MP ? MP.code : null,
+              ruolo: MP ? MP.ruolo : 'locale',
+              avversario: MP ? (MP.nomeAvversario || null) : null,
+              punti: ST.punti.slice(), turni: ST.turni || 0, finita: !!ST.finita});
   }catch(e){ /* spazio pieno o navigazione privata: si gioca lo stesso */ }
 }
-function ripristina(){
+function ripristina(k){
   try{
-    const d = JSON.parse(localStorage.getItem(CHIAVE));
+    const d = JSON.parse(localStorage.getItem(STATO_PRE + (k || chiave())));
     return (d && d.v === 1 && d.ST && d.ST.mani) ? d : null;
   }catch(e){ return null; }
 }
-function scordaPartita(){
-  try{ localStorage.removeItem(CHIAVE); }catch(e){}
+function scordaPartita(k){
+  try{ localStorage.removeItem(STATO_PRE + (k || chiave())); }catch(e){}
 }
+const quando = t => {
+  const d = new Date(t), p = n => String(n).padStart(2, '0');
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' alle ' + p(d.getHours()) + ':' + p(d.getMinutes());
+};
 let ST = null, SEL = [];
 
 function nuovaPartita(punti){
@@ -938,7 +972,13 @@ function mpInviaStato(forza){
 function mpConnetti(code, ruolo){
   MP = {ruolo, posto: ruolo === 'host' ? 0 : 1, code, ws:null,
         avversarioOn:false, nomeAvversario:null, ultimaFirma:null};
+  registra({chiave:'mp:' + code, code, ruolo});
   if(ruolo === 'guest') ST = null;
+  else {
+    const d = ripristina('mp:' + code);          // ripartenza: riprendo da dove eravamo
+    if(d && !d.ST.finita){ ST = d.ST; _uid = Math.max(_uid, d.uid || 0); SEL = []; }
+    else ST = null;
+  }
   mpSalvaSessione();
   mpSocket();
   modale('<h2>Stanza <span class="codice">' + code + '</span></h2>' +
@@ -991,7 +1031,7 @@ function mpMsg(m){
     if(a) a.textContent = m.on ? 'Avversario collegato!' : 'In attesa dell\'avversario\u2026';
     if(MP.ruolo === 'host' && m.on){
       chiudiModale();
-      if(!ST || ST.finita) nuovaPartita();
+      if(!ST || ST.finita) nuovaPartita(ST && ST.finita ? ST.punti : null);
       render();
       mpInviaStato();
       msg((MP.nomeAvversario || 'L\'avversario') + ' \u00e8 dei nostri.');
@@ -1136,9 +1176,30 @@ async function aggiornaApp(){
   location.replace(location.pathname + '?v=' + Date.now());
 }
 
+// Schermata da cui parte tutto: si sceglie se giocare qui o online.
+function menuIniziale(){
+  const loc = ripristina('locale');
+  const inCorso = loc && !loc.ST.finita;
+  modale('<h2>Burraco</h2><p>versione ' + VERSIONE + '</p>' +
+    '<button onclick="avviaLocale()">' +
+      (inCorso ? 'Riprendi la partita qui' : 'Gioca qui in due') + '</button>' +
+    (inCorso ? '<button class="g" onclick="avviaLocale(true)">Comincia una nuova partita qui</button>' : '') +
+    '<button class="g" onclick="apriLobby()">Gioca online</button>');
+}
+
+function avviaLocale(nuova){
+  if(MP){ try{ MP.ws && MP.ws.close(); }catch(e){} MP = null; }
+  chiudiAvvisoVer(); mpScordaSessione();
+  const d = nuova ? null : ripristina('locale');
+  if(d && !d.ST.finita){ ST = d.ST; _uid = Math.max(_uid, d.uid || 0); SEL = []; }
+  else nuovaPartita(d && d.ST.finita ? d.ST.punti : null);
+  chiudiModale(); closeOverlay(); render();
+}
+
 function apriMenu(){
   const s = mpSessione();
   modale('<h2>Burraco</h2><p>versione ' + VERSIONE + '</p>' +
+    '<button class="g" onclick="menuIniziale()">Menu iniziale</button>' +
     '<button class="g" onclick="aggiornaApp()">Aggiorna all\'ultima versione</button>' +
     (MP ? '<p>Stanza <b>' + MP.code + '</b> \u00b7 ' +
             (MP.avversarioOn ? 'avversario collegato' : 'avversario assente') +
@@ -1148,16 +1209,9 @@ function apriMenu(){
               : '') + '</p>' : '') +
     '<button onclick="apriLobby()">Gioca online</button>' +
     '<button class="g" onclick="chiudiModale();nuovaSmazzataManuale()">Nuova partita</button>' +
-    (ripristina() ? '<button class="g" onclick="cancellaSalvataggio()">' +
-       'Cancella la partita salvata</button>' : '') +
+
     (MP || s ? '<button class="g" onclick="mpEsci()">Torna a giocare in due qui</button>' : '') +
     '<button class="g" onclick="chiudiModale()">Chiudi</button>');
-}
-
-function cancellaSalvataggio(){
-  scordaPartita();
-  chiudiModale();
-  msg('Partita salvata cancellata.');
 }
 
 function nuovaSmazzataManuale(){
@@ -1165,20 +1219,48 @@ function nuovaSmazzataManuale(){
   scordaPartita(); nuovaPartita(); render(); mpInviaStato();
 }
 
+function rigaPartita(p){
+  const eti = p.ruolo === 'locale' ? 'Qui in due'
+            : (p.code + (p.avversario ? ' \u00b7 ' + p.avversario : '')) +
+              (p.ruolo === 'host' ? ' \u00b7 la crei tu' : '');
+  const pt = p.punti ? p.punti[0] + '\u2013' + p.punti[1] : '0\u20130';
+  return '<div style="display:flex;gap:5px;align-items:stretch;margin-bottom:7px">' +
+    '<button class="g" style="flex:1;display:block;text-align:left" ' +
+      'onclick="riprendiPartita(\'' + p.chiave + '\')">' +
+      '<div>' + eti + '</div>' +
+      '<div style="opacity:.65;font-weight:400;font-size:.85em">' +
+        quando(p.ultima) + ' \u00b7 ' + pt + ' \u00b7 ' + (p.turni || 0) + ' turni</div></button>' +
+    '<button class="g" style="width:46px;flex:0 0 auto" ' +
+      'onclick="dimentica(\'' + p.chiave + '\')">\u2715</button></div>';
+}
+
 function apriLobby(){
-  const s = mpSessione();
+  const mie = partite().sort((a, b) => b.ultima - a.ultima);
   modale('<h2>Gioca online</h2>' +
-    '<p>Uno crea la stanza e detta il codice, l\'altro lo scrive qui.</p>' +
     '<input id="mpNome" maxlength="20" placeholder="Il tuo nome" value="' + (mpNome() || '') + '">' +
-    (s ? '<button onclick="mpRiprendi()">Rientra nella stanza ' + s.code + '</button>' : '') +
     '<button onclick="mpCrea()">Crea una stanza</button>' +
     '<input id="mpCodice" maxlength="4" placeholder="CODICE" autocapitalize="characters">' +
     '<button class="g" onclick="mpEntra()">Entra col codice</button>' +
-    '<p style="margin-top:10px">Partite aperte (\u2715 per toglierle dall\'elenco):</p>' +
+    '<p style="margin-top:14px;text-align:left">Le tue partite avviate:</p>' +
+    '<div id="elencoPartite">' +
+      (mie.length ? mie.map(rigaPartita).join('') : '<p>Nessuna partita avviata.</p>') +
+    '</div>' +
+    '<p style="margin-top:10px;text-align:left">Stanze aperte adesso sul server:</p>' +
     '<div id="stanze"></div>' +
-    '<button class="g" onclick="chiudiModale()">Annulla</button>');
+    '<button class="g" onclick="menuIniziale()">Indietro</button>');
   mpListaStanze();
-  MP_POLL = setInterval(mpListaStanze, 3000);
+  MP_POLL = setInterval(mpListaStanze, 4000);
+}
+
+// Riprende una partita dall'elenco: quella locale ricarica lo stato, quelle
+// online riaprono la stanza con lo stesso ruolo di prima.
+function riprendiPartita(k){
+  const p = partite().find(x => x.chiave === k);
+  if(!p) return;
+  chiudiModale();
+  if(p.ruolo === 'locale') return avviaLocale();
+  mpLeggiNome();
+  mpConnetti(p.code, p.ruolo);
 }
 
 function mpLeggiNome(){
@@ -1321,32 +1403,10 @@ setTimeout(controllaVersione, 1200);
   b.addEventListener('touchend', e => { e.preventDefault(); apriMenu(); }, {passive:false});
 })();
 
-const salvata = ripristina();
-if(salvata && !salvata.ST.finita){
-  ST = salvata.ST; _uid = salvata.uid || _uid; SEL = [];
-  render();
-  const q = ST.mani[0].length + ST.mani[1].length;
-  overlay('Partita in corso',
-    'Tocca a ' + nomeDi(ST.turno) + ' (' + (ST.fase === 'pesca' ? 'deve pescare' : 'sta giocando') + ').\n' +
-    'Punti ' + nomeDi(0) + ' ' + ST.punti[0] + ' \u00b7 ' + nomeDi(1) + ' ' + ST.punti[1] +
-    ' \u00b7 tallone ' + ST.mazzo.length + ' \u00b7 ' + q + ' carte in mano.',
-    'Riprendi', () => { closeOverlay(); render(); },
-    'Ricomincia da capo', () => { scordaPartita(); nuovaPartita(); closeOverlay(); render(); });
-}else{
-  // smazzata gia' conteggiata: si tiene il punteggio e si ridistribuisce
-  nuovaPartita(salvata && salvata.ST.finita ? salvata.ST.punti : null);
-  render();
-  overlay('Burraco',
-    (salvata ? 'Nuova smazzata, punteggio mantenuto.\n\n' :
-               'Prototipo hot-seat: si gioca in due sullo stesso telefono.\nNiente CPU, niente online (per ora).\n\n') +
-    'Inizia ' + nomeDi(0) + '.',
-    'Comincia', () => { closeOverlay(); render(); });
-}
-const _sess = mpSessione();
-if(_sess) setTimeout(() => overlay('Partita online',
-  'Eri nella stanza ' + _sess.code + (_sess.avv ? ' con ' + _sess.avv : '') + '.',
-  'Rientra', () => { closeOverlay(); mpConnetti(_sess.code, _sess.ruolo); },
-  'Gioca qui in due', () => { mpScordaSessione(); closeOverlay(); render(); }), 40);
+// Si parte sempre dal menu: la partita non si sceglie da sola.
+nuovaPartita();          // tavolo di sfondo, sostituito appena si sceglie
+render();
+menuIniziale();
 </script>
 </body>
 </html>
