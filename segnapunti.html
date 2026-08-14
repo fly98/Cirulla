@@ -526,17 +526,48 @@ function sheetNuovaPartita(){
 }
 
 /* ---------- foglio: mano ---------- */
+/* Due passi: prima chi ha chiuso, poi il conto. Chi chiude prende i 100 e non
+   può avere carte in mano né pozzetto arretrato: quelle voci spariscono. */
 function sheetMano(indice){
   const p = S.partita;
   const nuova = indice === null;
   const dati = nuova
     ? p.squadre.map(()=>manoVuota())
     : JSON.parse(JSON.stringify(p.mani[indice]));
+  let chiusore = nuova ? null : dati.findIndex(m => m.chiusura);
 
-  function disegna(){
+  function applicaChiusura(){
+    dati.forEach((m,j) => {
+      m.chiusura = (j === chiusore);
+      if (j === chiusore){ m.mano = 0; m.pozzetto = false; }
+    });
+  }
+
+  function chiediChiusore(){
     el('sheetBody').innerHTML = `
       <h2>${nuova ? 'Mano ' + (p.mani.length + 1) : 'Mano ' + (indice + 1)}</h2>
-      <p class="muted">Somma automatica dei burachi, della chiusura e delle penalità.</p>
+      <p class="muted">Chi ha chiuso?</p>
+      <div style="margin-top:14px">
+        ${p.squadre.map((sq,j)=>`<button class="btn ${j===0?'':'ghost'}" style="width:100%;margin-bottom:10px;background:${j===0?'var(--rosso)':'transparent'};border-color:${j===0?'var(--rosso)':'var(--blu)'};color:${j===0?'#fff':'#9FBBEE'}" data-ch="${j}">${esc(sq.nome)}</button>`).join('')}
+        <button class="btn ghost" style="width:100%" data-ch="-1">Nessuno: mano finita senza chiusura</button>
+      </div>
+      <div class="azioni" style="margin-top:18px"><button class="btn ghost" id="bAnnullaS">Annulla</button></div>`;
+    el('sheetBody').querySelectorAll('[data-ch]').forEach(b => b.onclick = () => {
+      chiusore = +b.dataset.ch;
+      applicaChiusura();
+      disegna();
+    });
+    el('bAnnullaS').onclick = chiudiSheet;
+  }
+
+  function disegna(){
+    const nomeCh = chiusore >= 0 ? p.squadre[chiusore].nome : null;
+    el('sheetBody').innerHTML = `
+      <h2>${nuova ? 'Mano ' + (p.mani.length + 1) : 'Mano ' + (indice + 1)}</h2>
+      <p class="muted">
+        ${nomeCh ? 'Ha chiuso <b>' + esc(nomeCh) + '</b> — 100 punti già contati.' : 'Mano finita senza chiusura.'}
+        <button class="chip" style="padding:3px 10px;font-size:12.5px;margin-left:6px" id="bCambiaCh">Cambia</button>
+      </p>
       ${p.squadre.map((sq,j)=>calcolatore(sq,j,dati[j])).join('')}
       <div class="azioni" style="margin-top:18px">
         ${nuova ? '<button class="btn ghost" id="bAnnullaS">Annulla</button>'
@@ -544,6 +575,7 @@ function sheetMano(indice){
         <button class="btn oro" id="bSalva">${nuova ? 'Segna la mano' : 'Salva modifiche'}</button>
       </div>`;
 
+    el('bCambiaCh').onclick = chiediChiusore;
     el('sheetBody').querySelectorAll('[data-inc]').forEach(b => b.onclick = () => {
       const [j,campo,d] = b.dataset.inc.split(':');
       dati[j][campo] = Math.max(0, dati[j][campo] + (+d));
@@ -565,6 +597,7 @@ function sheetMano(indice){
     if (nuova) el('bAnnullaS').onclick = chiudiSheet;
     else el('bElimina').onclick = () => { if (confirm('Eliminare questa mano?')){ p.mani.splice(indice,1); salva(); chiudiSheet(); render(); } };
     el('bSalva').onclick = () => {
+      applicaChiusura();
       if (nuova) p.mani.push(dati); else p.mani[indice] = dati;
       salva(); chiudiSheet(); render();
       avviso(nuova ? 'Mano segnata' : 'Mano aggiornata');
@@ -572,6 +605,7 @@ function sheetMano(indice){
   }
 
   function calcolatore(sq,j,m){
+    const haChiuso = (j === chiusore);
     const stp = (campo,tit,sub) => `
       <div class="step">
         <div class="t">${tit}<small>${sub}</small></div>
@@ -583,7 +617,10 @@ function sheetMano(indice){
       </div>`;
     return `
       <div class="calc c${j}">
-        <div class="calc-head"><div class="nome">${esc(sq.nome)}</div><div class="live" id="live${j}">${totaleMano(m)}</div></div>
+        <div class="calc-head">
+          <div class="nome">${esc(sq.nome)}${haChiuso ? ' <span style="font-size:12px;color:var(--oro);font-family:\'IBM Plex Mono\',monospace">CHIUDE +100</span>' : ''}</div>
+          <div class="live" id="live${j}">${totaleMano(m)}</div>
+        </div>
         <div class="step">
           <div class="t">Punti delle carte<small>valore di ciò che è in tavola</small></div>
           <input type="number" inputmode="numeric" data-num="${j}:carte" value="${m.carte||''}" placeholder="0">
@@ -591,10 +628,7 @@ function sheetMano(indice){
         ${stp('pulito','Burraco pulito','200 ciascuno')}
         ${S.impostazioni.semipulito ? stp('semi','Burraco semipulito','150 ciascuno') : ''}
         ${stp('sporco','Burraco sporco','100 ciascuno')}
-        <div class="step">
-          <div class="t">Ha chiuso<small>+100</small></div>
-          <div class="sw ${m.chiusura?'on':''}" data-sw="${j}:chiusura" role="switch" aria-checked="${m.chiusura}"><i></i></div>
-        </div>
+        ${haChiuso ? '' : `
         <div class="step">
           <div class="t">Pozzetto non preso<small>−100</small></div>
           <div class="sw ${m.pozzetto?'on':''}" data-sw="${j}:pozzetto" role="switch" aria-checked="${m.pozzetto}"><i></i></div>
@@ -602,10 +636,12 @@ function sheetMano(indice){
         <div class="step">
           <div class="t">Carte rimaste in mano<small>si sottraggono</small></div>
           <input type="number" inputmode="numeric" data-num="${j}:mano" value="${m.mano||''}" placeholder="0">
-        </div>
+        </div>`}
       </div>`;
   }
-  disegna(); apriSheet();
+
+  if (chiusore === null) chiediChiusore(); else disegna();
+  apriSheet();
 }
 
 /* ---------- GIOCATORI ---------- */
