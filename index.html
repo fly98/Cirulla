@@ -118,6 +118,13 @@ body::before{
       <div class="desc">Spizzichino a due: pesca dal tallone, obbligo di seme, buongiochi. Si gioca a 31.</div>
     </div>
   </a>
+  <a class="gioco" href="segnapunti.html" id="gSegnapunti">
+    <div class="icona">📋</div>
+    <div>
+      <div class="nome">SEGNAPUNTI</div>
+      <div class="desc">Il blocchetto del burraco al tavolo vero: somme automatiche, storico partite e statistiche dei giocatori.</div>
+    </div>
+  </a>
 </div>
 
 <div class="footer">FlyGames · carte piacentine</div>
@@ -142,6 +149,23 @@ badge('scopa_save_v1', 'gScopa');
 badge('tressette_save_v1', 'gTressette');
 badge('briscola_save_v1', 'gBriscola');
 badge('yacht_save_v1', 'gYacht');
+
+// il segnapunti ha uno stato tutto suo: partita in corso con i totali delle squadre
+(function(){
+  try{
+    const s = JSON.parse(localStorage.getItem('segnapunti_v1') || 'null');
+    const p = s && s.partita;
+    if(!p) return;
+    const tot = p.squadre.map((_,i) => p.mani.reduce((n,m) => n + (
+      (+m[i].carte||0) + m[i].pulito*200 + m[i].semi*150 + m[i].sporco*100
+      + (m[i].chiusura?100:0) - (m[i].pozzetto?100:0) - (+m[i].mano||0)
+    ), 0));
+    const b = document.createElement('div');
+    b.className = 'badge';
+    b.textContent = '▶︎ in corso ' + tot.join('–');
+    document.getElementById('gSegnapunti').appendChild(b);
+  }catch(e){}
+})();
 </script>
 <script>
 if('serviceWorker' in navigator){
