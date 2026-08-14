@@ -1,0 +1,41 @@
+{
+  "name": "Segnapunti Burraco · FlyGames",
+  "short_name": "Segnapunti",
+  "description": "Il blocchetto del burraco: somme automatiche, storico partite e statistiche dei giocatori.",
+  "start_url": "segnapunti.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "fullscreen",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#0B241E",
+  "theme_color": "#0B241E",
+  "lang": "it",
+  "categories": [
+    "games",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "icon-segnapunti-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-segnapunti-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-segnapunti-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
