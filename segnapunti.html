@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B241E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Segnapunti">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="color-scheme" content="dark">
+<title>Segnapunti Burraco · FlyGames</title>
+<link rel="manifest" href="manifest-segnapunti.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="apple-touch-icon" href="icon-segnapunti-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-segnapunti-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-segnapunti-512.png">
+<style>
+:root{
+  --feltro:#12352C;
+  --feltro-scuro:#0B241E;
+  --feltro-riga:#1D4A3D;
+  --carta:#F4EDE0;
+  --carta-riga:#DFD3BE;
+  --inchiostro:#16211E;
+  --inchiostro-tenue:#6B6459;
+  --rosso:#B3352B;
+  --blu:#2F4E8F;
+  --viola:#6A3D7A;
+  --oro:#D8A24A;
+  --raggio:14px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--feltro-scuro);
+  background-image:radial-gradient(120% 80% at 50% 0%,#194438 0%,#0B241E 70%);
+  background-attachment:fixed;
+  color:var(--carta);
+  font-family:"IBM Plex Sans",-apple-system,system-ui,sans-serif;
+  font-size:16px;line-height:1.45;
+  min-height:100vh;
+  padding-bottom:calc(78px + var(--safe-b));
+}
+h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.wrap{max-width:620px;margin:0 auto;padding:0 16px}
+
+/* ---------- testata ---------- */
+.top{padding:22px 0 14px;display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.top h1{font-size:26px;color:var(--carta)}
+.top h1 em{font-style:normal;color:var(--oro)}
+.top .sub{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7FA396}
+
+/* ---------- blocchetto (signature) ---------- */
+.pad{
+  background:var(--carta);color:var(--inchiostro);
+  border-radius:var(--raggio);
+  box-shadow:0 18px 40px rgba(0,0,0,.38),0 1px 0 rgba(255,255,255,.35) inset;
+  overflow:hidden;position:relative;
+}
+.pad::after{content:"";position:absolute;left:0;right:0;top:0;height:6px;
+  background:repeating-linear-gradient(90deg,var(--oro) 0 10px,transparent 10px 20px);opacity:.55}
+.pad-head{display:grid;border-bottom:2px solid var(--inchiostro)}
+.pad-head .cell{padding:14px 10px 10px;text-align:center;border-left:1px solid var(--carta-riga)}
+.pad-head .cell:first-child{border-left:0}
+.team-name{font-family:"Fraunces",serif;font-size:17px;font-weight:600;line-height:1.15}
+.team-players{font-size:11.5px;color:var(--inchiostro-tenue);margin-top:2px}
+.t0 .team-name{color:var(--rosso)}
+.t1 .team-name{color:var(--blu)}
+.t2 .team-name{color:var(--viola)}
+.rows{min-height:120px}
+.row{display:grid;align-items:stretch;border-bottom:1px solid var(--carta-riga);position:relative}
+.row:active{background:#EFE6D5}
+.row .cell{padding:9px 10px;border-left:1px solid var(--carta-riga);text-align:right}
+.row .cell:first-child{border-left:0}
+.n{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:19px;font-weight:500}
+.brk{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--inchiostro-tenue);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mano-tag{position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  font-family:"IBM Plex Mono",monospace;font-size:10px;color:#B3A88F}
+.row .cell:first-child{padding-left:26px}
+.tot{display:grid;background:#EDE3D0;border-top:2px solid var(--inchiostro)}
+.tot .cell{padding:12px 10px;text-align:right;border-left:1px solid var(--carta-riga)}
+.tot .cell:first-child{border-left:0;padding-left:26px}
+.tot .big{font-family:"Fraunces",serif;font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.tot .lab{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--inchiostro-tenue)}
+.bar{height:3px;background:var(--carta-riga);border-radius:2px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:2px;transition:width .45s ease}
+.vuoto{padding:34px 18px;text-align:center;color:var(--inchiostro-tenue);font-size:14px}
+
+/* ---------- pulsanti ---------- */
+.azioni{display:flex;gap:10px;margin:14px 0 8px}
+.btn{
+  flex:1;padding:14px 16px;border-radius:12px;font-weight:600;font-size:15.5px;text-align:center;
+  background:#1D4A3D;color:var(--carta);border:1px solid #2E6553;transition:transform .12s ease,filter .12s ease;
+}
+.btn:active{transform:scale(.985);filter:brightness(1.12)}
+.btn.oro{background:var(--oro);color:#241A08;border-color:#EDBB66}
+.btn.ghost{background:transparent;border:1px solid #35695A;color:#BFD6CD}
+.btn.rosso{background:transparent;border:1px solid #7E3B34;color:#E9A79F}
+.btn:disabled{opacity:.45}
+.btn.small{flex:0 0 auto;padding:10px 14px;font-size:14px}
+
+/* ---------- sezioni ---------- */
+.sez{margin:22px 0 10px;display:flex;align-items:center;gap:10px}
+.sez h2{font-size:19px}
+.sez .rule{flex:1;height:1px;background:#2A5749}
+.sez .cnt{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#7FA396}
+.card{background:rgba(255,255,255,.045);border:1px solid #29564A;border-radius:var(--raggio);padding:14px;margin-bottom:10px}
+.card h3{font-size:16.5px}
+.muted{color:#9BB8AE;font-size:13.5px}
+.riga{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;border:1px solid #35695A;background:transparent;color:#CFE2DA;font-size:14px;margin:0 6px 6px 0}
+.chip.on{background:var(--oro);border-color:var(--oro);color:#241A08;font-weight:600}
+.chip.on.t0{background:var(--rosso);border-color:var(--rosso);color:#fff}
+.chip.on.t1{background:var(--blu);border-color:var(--blu);color:#fff}
+label.f{display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#8FB0A6;margin:14px 0 6px}
+input[type=text],input[type=number],select{
+  width:100%;padding:12px 13px;border-radius:11px;border:1px solid #35695A;background:#0E2C24;color:var(--carta);
+  font-family:"IBM Plex Mono",monospace;
+}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--oro);outline-offset:2px}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#8FB0A6 50%),linear-gradient(135deg,#8FB0A6 50%,transparent 50%);
+  background-position:calc(100% - 20px) 21px,calc(100% - 15px) 21px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+
+/* ---------- barra tab ---------- */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(9,31,25,.92);backdrop-filter:blur(14px);border-top:1px solid #245446;
+  padding-bottom:var(--safe-b);
+}
+.tabbar .in{max-width:620px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
+.tab{padding:12px 6px 13px;text-align:center;color:#7FA396;font-size:11.5px;font-family:"IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase}
+.tab svg{display:block;margin:0 auto 4px;width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+.tab.on{color:var(--oro)}
+
+/* ---------- foglio modale ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(4,16,12,.66);z-index:50;opacity:0;pointer-events:none;transition:opacity .22s ease}
+.sheet-bg.on{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:51;max-height:92vh;overflow-y:auto;
+  background:#123A30;border-top-left-radius:22px;border-top-right-radius:22px;border-top:1px solid #2E6553;
+  transform:translateY(102%);transition:transform .3s cubic-bezier(.22,.9,.3,1);
+  padding:8px 16px calc(24px + var(--safe-b));
+  -webkit-overflow-scrolling:touch;
+}
+.sheet.on{transform:translateY(0)}
+.grip{width:42px;height:4px;border-radius:2px;background:#3A6E5F;margin:6px auto 12px}
+.sheet h2{font-size:21px;margin-bottom:2px}
+
+/* ---------- calcolatore mano ---------- */
+.calc{border:1px solid #2E6553;border-radius:var(--raggio);padding:12px;margin:12px 0;background:rgba(255,255,255,.04)}
+.calc-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid #2A5749}
+.calc-head .nome{font-family:"Fraunces",serif;font-size:18px;font-weight:600}
+.calc-head .live{font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:600;font-variant-numeric:tabular-nums}
+.c0 .nome,.c0 .live{color:#F0968C}
+.c1 .nome,.c1 .live{color:#9FBBEE}
+.c2 .nome,.c2 .live{color:#CBA6D8}
+.step{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px dashed #2A5749}
+.step:last-child{border-bottom:0}
+.step .t{font-size:14.5px}
+.step .t small{display:block;color:#8FB0A6;font-size:11.5px;font-family:"IBM Plex Mono",monospace}
+.stepper{display:flex;align-items:center;gap:0;border:1px solid #35695A;border-radius:10px;overflow:hidden;flex:0 0 auto}
+.stepper button{width:40px;height:38px;font-size:19px;color:#CFE2DA;background:rgba(255,255,255,.04)}
+.stepper button:active{background:var(--oro);color:#241A08}
+.stepper .v{width:38px;text-align:center;font-family:"IBM Plex Mono",monospace;font-size:16px;font-variant-numeric:tabular-nums}
+.step input[type=number]{width:104px;text-align:right;padding:9px 11px}
+.sw{width:52px;height:31px;border-radius:999px;background:#0E2C24;border:1px solid #35695A;position:relative;flex:0 0 auto}
+.sw i{position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#7FA396;transition:.2s}
+.sw.on{background:var(--oro);border-color:var(--oro)}
+.sw.on i{left:25px;background:#241A08}
+
+/* ---------- liste ---------- */
+.lista-riga{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #244F42}
+.lista-riga:last-child{border-bottom:0}
+.avatar{width:38px;height:38px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+  font-family:"Fraunces",serif;font-weight:600;font-size:16px;background:#1D4A3D;border:1px solid #35695A;color:var(--oro)}
+.lista-riga .info{flex:1;min-width:0}
+.lista-riga .nome{font-size:15.5px;font-weight:500}
+.lista-riga .meta{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:#8FB0A6;margin-top:1px}
+.pill{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid #35695A;color:#BFD6CD}
+.pill.win{border-color:var(--oro);color:var(--oro)}
+.x{width:34px;height:34px;border-radius:9px;border:1px solid #3A5D53;color:#9BB8AE;font-size:16px;flex:0 0 auto}
+.storico-item{background:rgba(255,255,255,.045);border:1px solid #29564A;border-radius:var(--raggio);padding:13px 14px;margin-bottom:10px}
+.storico-item .data{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7FA396}
+.esito{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.esito .lato{flex:1;min-width:0}
+.esito .sq{font-family:"Fraunces",serif;font-size:15.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.esito .pt{font-family:"IBM Plex Mono",monospace;font-size:20px;font-variant-numeric:tabular-nums}
+.esito .vs{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#6E8F85;padding:0 4px}
+.win .sq,.win .pt{color:var(--oro)}
+.toast{position:fixed;left:50%;bottom:calc(92px + var(--safe-b));transform:translate(-50%,14px);z-index:60;
+  background:var(--carta);color:var(--inchiostro);padding:11px 17px;border-radius:11px;font-size:14px;font-weight:500;
+  box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.25s;max-width:88vw;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.banner{background:linear-gradient(100deg,#D8A24A,#E8C079);color:#241A08;border-radius:var(--raggio);padding:14px 16px;margin-top:14px}
+.banner h3{font-size:18px}
+.banner p{margin:3px 0 10px;font-size:13.5px}
+.banner .btn{background:#241A08;border-color:#241A08;color:var(--oro)}
+details.help{margin-top:18px;border:1px solid #29564A;border-radius:var(--raggio);padding:12px 14px;background:rgba(255,255,255,.03)}
+details.help summary{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8FB0A6;cursor:pointer}
+details.help table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5px}
+details.help td{padding:5px 0;border-bottom:1px solid #244F42}
+details.help td:last-child{text-align:right;font-family:"IBM Plex Mono",monospace;color:var(--oro)}
+.hide{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <h1>Segnapunti <em>Burraco</em></h1>
+    <div class="sub" id="subHead">—</div>
+  </div>
+  <main id="vista"></main>
+</div>
+
+<nav class="tabbar"><div class="in">
+  <button class="tab on" data-tab="partita">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M12 9v11"/></svg>Partita</button>
+  <button class="tab" data-tab="giocatori">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11.2A3 3 0 0 0 17 5.4M21 20c0-2.6-1.6-4.4-4-5.1"/></svg>Giocatori</button>
+  <button class="tab" data-tab="storico">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/><path d="M12 7.5V12l3 2"/></svg>Storico</button>
+</div></nav>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet"><div class="grip"></div><div id="sheetBody"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   Archivio dati — usa window.storage se c'è, altrimenti localStorage
+   ========================================================= */
+const KEY = 'segnapunti_v1';
+const Archivio = {
+  async leggi(){
+    if (window.storage){
+      try { const r = await window.storage.get(KEY); return r ? JSON.parse(r.value) : null; }
+      catch(e){ return null; }
+    }
+    try { const v = localStorage.getItem(KEY); return v ? JSON.parse(v) : null; } catch(e){ return null; }
+  },
+  async scrivi(o){
+    const s = JSON.stringify(o);
+    if (window.storage){ try { await window.storage.set(KEY, s); return; } catch(e){} }
+    try { localStorage.setItem(KEY, s); } catch(e){}
+  }
+};
+
+const VUOTO = { impostazioni:{ obiettivo:2005, semipulito:true }, giocatori:[], partita:null, archivio:[] };
+let S = JSON.parse(JSON.stringify(VUOTO));
+let tab = 'partita';
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const salva = () => Archivio.scrivi(S);
+const el = id => document.getElementById(id);
+const esc = t => String(t==null?'':t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function avviso(t){ const n = el('toast'); n.textContent = t; n.classList.add('on'); clearTimeout(n._t); n._t = setTimeout(()=>n.classList.remove('on'), 2200); }
+
+/* =========================================================
+   Punteggi
+   ========================================================= */
+const B_PULITO = 200, B_SEMI = 150, B_SPORCO = 100, CHIUSURA = 100, POZZETTO = 100;
+const manoVuota = () => ({ carte:0, pulito:0, semi:0, sporco:0, chiusura:false, pozzetto:false, mano:0 });
+
+function totaleMano(m){
+  return (+m.carte||0)
+       + m.pulito*B_PULITO + m.semi*B_SEMI + m.sporco*B_SPORCO
+       + (m.chiusura ? CHIUSURA : 0)
+       - (m.pozzetto ? POZZETTO : 0)
+       - (+m.mano||0);
+}
+function dettaglioMano(m){
+  const p = [];
+  if (+m.carte) p.push(m.carte);
+  if (m.pulito) p.push(m.pulito+'×200');
+  if (m.semi)   p.push(m.semi+'×150');
+  if (m.sporco) p.push(m.sporco+'×100');
+  if (m.chiusura) p.push('+100 ch.');
+  if (m.pozzetto) p.push('−100 poz.');
+  if (+m.mano)  p.push('−'+m.mano);
+  return p.join('  ');
+}
+const totaliPartita = p => p.squadre.map((_,i) => p.mani.reduce((s,mn)=> s + totaleMano(mn[i]), 0));
+const nomiSquadra = sq => sq.giocatori.map(id => (S.giocatori.find(g=>g.id===id)||{nome:'?'}).nome).join(' · ');
+
+/* =========================================================
+   Render
+   ========================================================= */
+function render(){
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  el('subHead').textContent = tab === 'partita'
+    ? (S.partita ? 'in corso · ' + S.partita.obiettivo + ' pt' : 'nessuna partita')
+    : tab === 'giocatori' ? S.giocatori.length + ' iscritti'
+    : S.archivio.length + ' partite';
+  if (tab === 'partita') vistaPartita();
+  else if (tab === 'giocatori') vistaGiocatori();
+  else vistaStorico();
+}
+
+/* ---------- PARTITA ---------- */
+function vistaPartita(){
+  const v = el('vista');
+  if (!S.partita){
+    v.innerHTML = `
+      <div class="card" style="text-align:center;padding:34px 18px">
+        <h3 style="font-size:20px">Il tavolo è libero</h3>
+        <p class="muted" style="margin:6px 0 18px">Scegli i giocatori e comincia a segnare.</p>
+        <button class="btn oro" id="bNuova">Nuova partita</button>
+      </div>` + promemoria();
+    el('bNuova').onclick = sheetNuovaPartita;
+    return;
+  }
+  const p = S.partita, tot = totaliPartita(p), n = p.squadre.length;
+  const col = `grid-template-columns:repeat(${n},1fr)`;
+  const colori = ['var(--rosso)','var(--blu)','var(--viola)'];
+  const max = Math.max(...tot, 1);
+  const finita = tot.some(t => t >= p.obiettivo);
+
+  let righe = p.mani.map((mn,i) => `
+    <div class="row" style="${col}" data-mano="${i}">
+      <span class="mano-tag">${i+1}</span>
+      ${mn.map((m,j) => `<div class="cell"><div class="n" style="color:${colori[j]}">${totaleMano(m)}</div><div class="brk">${esc(dettaglioMano(m))||'—'}</div></div>`).join('')}
+    </div>`).join('');
+  if (!p.mani.length) righe = `<div class="vuoto">Nessuna mano segnata.<br>La prima smazzata decide il ritmo.</div>`;
+
+  v.innerHTML = `
+    <div class="pad">
+      <div class="pad-head" style="${col}">
+        ${p.squadre.map((sq,j)=>`<div class="cell t${j}"><div class="team-name">${esc(sq.nome)}</div><div class="team-players">${esc(nomiSquadra(sq))}</div></div>`).join('')}
+      </div>
+      <div class="rows">${righe}</div>
+      <div class="tot" style="${col}">
+        ${tot.map((t,j)=>`<div class="cell">
+            <div class="lab">Totale</div>
+            <div class="big" style="color:${colori[j]}">${t}</div>
+            <div class="bar"><i style="width:${Math.min(100, Math.max(0,t)/Math.max(p.obiettivo,max)*100)}%;background:${colori[j]}"></i></div>
+          </div>`).join('')}
+      </div>
+    </div>
+    ${finita ? `<div class="banner">
+        <h3>${esc(p.squadre[tot.indexOf(Math.max(...tot))].nome)} ha superato ${p.obiettivo}</h3>
+        <p>Puoi chiudere qui oppure continuare a segnare.</p>
+        <button class="btn" id="bChiudi">Chiudi la partita</button>
+      </div>` : ''}
+    <div class="azioni">
+      <button class="btn oro" id="bMano">Segna una mano</button>
+      <button class="btn ghost small" id="bAnnulla" ${p.mani.length?'':'disabled'}>Annulla</button>
+    </div>
+    <div class="azioni" style="margin-top:0">
+      <button class="btn rosso small" id="bAbbandona">Abbandona partita</button>
+    </div>
+    ${promemoria()}`;
+
+  el('bMano').onclick = () => sheetMano(null);
+  el('bAnnulla').onclick = () => { p.mani.pop(); salva(); render(); avviso('Ultima mano annullata'); };
+  el('bAbbandona').onclick = () => { if (confirm('Abbandonare la partita? Non finirà nello storico.')){ S.partita = null; salva(); render(); } };
+  if (finita) el('bChiudi').onclick = chiudiPartita;
+  v.querySelectorAll('.row[data-mano]').forEach(r => r.onclick = () => sheetMano(+r.dataset.mano));
+}
+
+function promemoria(){
+  return `<details class="help"><summary>Come si contano i punti</summary>
+    <table>
+      <tr><td>Burraco pulito</td><td>200</td></tr>
+      <tr><td>Burraco semipulito</td><td>150</td></tr>
+      <tr><td>Burraco sporco</td><td>100</td></tr>
+      <tr><td>Chiusura</td><td>100</td></tr>
+      <tr><td>Pozzetto non preso</td><td>−100</td></tr>
+      <tr><td>Carte rimaste in mano</td><td>a scalare</td></tr>
+      <tr><td>Jolly</td><td>30</td></tr>
+      <tr><td>Pinella (2)</td><td>20</td></tr>
+      <tr><td>Asso</td><td>15</td></tr>
+      <tr><td>Da 8 a K</td><td>10</td></tr>
+      <tr><td>Da 3 a 7</td><td>5</td></tr>
+    </table></details>`;
+}
+
+function chiudiPartita(){
+  const p = S.partita, tot = totaliPartita(p);
+  p.punteggi = tot;
+  p.vincitore = tot.indexOf(Math.max(...tot));
+  p.finita = new Date().toISOString();
+  S.archivio.unshift(p);
+  S.partita = null;
+  salva();
+  tab = 'storico'; render();
+  avviso('Partita archiviata');
+}
+
+/* ---------- foglio: nuova partita ---------- */
+function sheetNuovaPartita(){
+  let formato = 4, scelti = [], obiettivo = S.impostazioni.obiettivo;
+
+  function disegna(){
+    const serve = formato;
+    el('sheetBody').innerHTML = `
+      <h2>Nuova partita</h2>
+      <p class="muted">Seleziona chi gioca: nell'ordine, prima squadra e poi seconda.</p>
+
+      <label class="f">Formato</label>
+      <div>
+        ${[[2,'2 giocatori'],[3,'3 giocatori'],[4,'2 contro 2']].map(([n,t])=>
+          `<button class="chip ${formato===n?'on':''}" data-fm="${n}">${t}</button>`).join('')}
+      </div>
+
+      <label class="f">Si arriva a</label>
+      <div>
+        ${[1005,2005,3005].map(n=>`<button class="chip ${obiettivo===n?'on':''}" data-ob="${n}">${n}</button>`).join('')}
+        <button class="chip ${![1005,2005,3005].includes(obiettivo)?'on':''}" data-ob="x">Altro…</button>
+      </div>
+
+      <label class="f">Giocatori — ${scelti.length} di ${serve}</label>
+      <div id="rosa">
+        ${S.giocatori.length ? S.giocatori.map(g=>{
+          const i = scelti.indexOf(g.id);
+          const sq = formato===4 ? (i<2?0:1) : i;
+          return `<button class="chip ${i>=0?'on t'+sq:''}" data-g="${g.id}">${i>=0?(i+1)+'. ':''}${esc(g.nome)}</button>`;
+        }).join('') : '<p class="muted">Nessun giocatore in anagrafica.</p>'}
+      </div>
+      <div style="margin-top:8px"><button class="chip" id="bAdd">+ Aggiungi giocatore</button></div>
+
+      <div class="azioni" style="margin-top:20px">
+        <button class="btn ghost" id="bAnnullaS">Annulla</button>
+        <button class="btn oro" id="bVia" ${scelti.length===serve?'':'disabled'}>Comincia</button>
+      </div>`;
+
+    el('sheetBody').querySelectorAll('[data-fm]').forEach(b => b.onclick = () => { formato = +b.dataset.fm; scelti = []; disegna(); });
+    el('sheetBody').querySelectorAll('[data-ob]').forEach(b => b.onclick = () => {
+      if (b.dataset.ob === 'x'){ const v = prompt('Punteggio da raggiungere', obiettivo); if (v && +v > 0) obiettivo = Math.round(+v); }
+      else obiettivo = +b.dataset.ob;
+      disegna();
+    });
+    el('sheetBody').querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+      const id = b.dataset.g, i = scelti.indexOf(id);
+      if (i >= 0) scelti.splice(i,1);
+      else if (scelti.length < formato) scelti.push(id);
+      else avviso('Il tavolo è al completo');
+      disegna();
+    });
+    el('bAdd').onclick = () => {
+      const n = prompt('Nome del giocatore');
+      if (n && n.trim()){ const g = { id:uid(), nome:n.trim() }; S.giocatori.push(g); salva(); if (scelti.length < formato) scelti.push(g.id); disegna(); }
+    };
+    el('bAnnullaS').onclick = chiudiSheet;
+    el('bVia').onclick = () => {
+      const squadre = formato === 4
+        ? [{ nome:'Noi', giocatori:[scelti[0],scelti[1]] }, { nome:'Voi', giocatori:[scelti[2],scelti[3]] }]
+        : scelti.map(id => ({ nome:(S.giocatori.find(g=>g.id===id)||{}).nome || '—', giocatori:[id] }));
+      S.impostazioni.obiettivo = obiettivo;
+      S.partita = { id:uid(), inizio:new Date().toISOString(), formato, obiettivo, squadre, mani:[] };
+      salva(); chiudiSheet(); render();
+    };
+  }
+  disegna(); apriSheet();
+}
+
+/* ---------- foglio: mano ---------- */
+function sheetMano(indice){
+  const p = S.partita;
+  const nuova = indice === null;
+  const dati = nuova
+    ? p.squadre.map(()=>manoVuota())
+    : JSON.parse(JSON.stringify(p.mani[indice]));
+
+  function disegna(){
+    el('sheetBody').innerHTML = `
+      <h2>${nuova ? 'Mano ' + (p.mani.length + 1) : 'Mano ' + (indice + 1)}</h2>
+      <p class="muted">Somma automatica dei burachi, della chiusura e delle penalità.</p>
+      ${p.squadre.map((sq,j)=>calcolatore(sq,j,dati[j])).join('')}
+      <div class="azioni" style="margin-top:18px">
+        ${nuova ? '<button class="btn ghost" id="bAnnullaS">Annulla</button>'
+                : '<button class="btn rosso" id="bElimina">Elimina mano</button>'}
+        <button class="btn oro" id="bSalva">${nuova ? 'Segna la mano' : 'Salva modifiche'}</button>
+      </div>`;
+
+    el('sheetBody').querySelectorAll('[data-inc]').forEach(b => b.onclick = () => {
+      const [j,campo,d] = b.dataset.inc.split(':');
+      dati[j][campo] = Math.max(0, dati[j][campo] + (+d));
+      disegna();
+    });
+    el('sheetBody').querySelectorAll('[data-sw]').forEach(b => b.onclick = () => {
+      const [j,campo] = b.dataset.sw.split(':');
+      dati[j][campo] = !dati[j][campo];
+      disegna();
+    });
+    el('sheetBody').querySelectorAll('[data-num]').forEach(inp => {
+      inp.oninput = () => {
+        const [j,campo] = inp.dataset.num.split(':');
+        dati[j][campo] = inp.value === '' ? 0 : Math.round(+inp.value);
+        const live = el('live'+j);
+        if (live) live.textContent = totaleMano(dati[j]);
+      };
+    });
+    if (nuova) el('bAnnullaS').onclick = chiudiSheet;
+    else el('bElimina').onclick = () => { if (confirm('Eliminare questa mano?')){ p.mani.splice(indice,1); salva(); chiudiSheet(); render(); } };
+    el('bSalva').onclick = () => {
+      if (nuova) p.mani.push(dati); else p.mani[indice] = dati;
+      salva(); chiudiSheet(); render();
+      avviso(nuova ? 'Mano segnata' : 'Mano aggiornata');
+    };
+  }
+
+  function calcolatore(sq,j,m){
+    const stp = (campo,tit,sub) => `
+      <div class="step">
+        <div class="t">${tit}<small>${sub}</small></div>
+        <div class="stepper">
+          <button data-inc="${j}:${campo}:-1" aria-label="meno">−</button>
+          <div class="v">${m[campo]}</div>
+          <button data-inc="${j}:${campo}:1" aria-label="più">+</button>
+        </div>
+      </div>`;
+    return `
+      <div class="calc c${j}">
+        <div class="calc-head"><div class="nome">${esc(sq.nome)}</div><div class="live" id="live${j}">${totaleMano(m)}</div></div>
+        <div class="step">
+          <div class="t">Punti delle carte<small>valore di ciò che è in tavola</small></div>
+          <input type="number" inputmode="numeric" data-num="${j}:carte" value="${m.carte||''}" placeholder="0">
+        </div>
+        ${stp('pulito','Burraco pulito','200 ciascuno')}
+        ${S.impostazioni.semipulito ? stp('semi','Burraco semipulito','150 ciascuno') : ''}
+        ${stp('sporco','Burraco sporco','100 ciascuno')}
+        <div class="step">
+          <div class="t">Ha chiuso<small>+100</small></div>
+          <div class="sw ${m.chiusura?'on':''}" data-sw="${j}:chiusura" role="switch" aria-checked="${m.chiusura}"><i></i></div>
+        </div>
+        <div class="step">
+          <div class="t">Pozzetto non preso<small>−100</small></div>
+          <div class="sw ${m.pozzetto?'on':''}" data-sw="${j}:pozzetto" role="switch" aria-checked="${m.pozzetto}"><i></i></div>
+        </div>
+        <div class="step">
+          <div class="t">Carte rimaste in mano<small>si sottraggono</small></div>
+          <input type="number" inputmode="numeric" data-num="${j}:mano" value="${m.mano||''}" placeholder="0">
+        </div>
+      </div>`;
+  }
+  disegna(); apriSheet();
+}
+
+/* ---------- GIOCATORI ---------- */
+function statistiche(id){
+  let partite = 0, vinte = 0, punti = 0, mani = 0, migliore = 0;
+  S.archivio.forEach(p => {
+    const j = p.squadre.findIndex(sq => sq.giocatori.includes(id));
+    if (j < 0) return;
+    partite++;
+    if (p.vincitore === j) vinte++;
+    punti += p.punteggi[j];
+    p.mani.forEach(mn => { mani++; const t = totaleMano(mn[j]); if (t > migliore) migliore = t; });
+  });
+  return { partite, vinte, punti, mani, migliore, media: mani ? Math.round(punti/mani) : 0 };
+}
+
+function vistaGiocatori(){
+  const cl = S.giocatori.map(g => ({ g, s:statistiche(g.id) }))
+    .sort((a,b) => b.s.vinte - a.s.vinte || b.s.partite - a.s.partite || a.g.nome.localeCompare(b.g.nome));
+  el('vista').innerHTML = `
+    <div class="sez"><h2>Anagrafica</h2><div class="rule"></div><div class="cnt">${S.giocatori.length}</div></div>
+    <div class="card">
+      ${cl.length ? cl.map(({g,s}) => `
+        <div class="lista-riga">
+          <div class="avatar">${esc(g.nome.trim().charAt(0).toUpperCase())}</div>
+          <div class="info">
+            <div class="nome">${esc(g.nome)}</div>
+            <div class="meta">${s.partite} partite · ${s.media} pt/mano · record ${s.migliore}</div>
+          </div>
+          <span class="pill ${s.vinte?'win':''}">${s.vinte} vinte</span>
+          <button class="x" data-del="${g.id}" aria-label="Elimina ${esc(g.nome)}">✕</button>
+        </div>`).join('')
+        : '<p class="muted" style="text-align:center;padding:18px 0">Nessuno al tavolo. Aggiungi i soliti sospetti.</p>'}
+    </div>
+    <div class="azioni"><button class="btn oro" id="bNuovoG">Aggiungi giocatore</button></div>
+    <div class="sez"><h2>Impostazioni</h2><div class="rule"></div></div>
+    <div class="card">
+      <div class="riga" style="padding:4px 0">
+        <div><div style="font-size:15px">Burraco semipulito</div><div class="muted">Mostra la voce da 150 punti</div></div>
+        <div class="sw ${S.impostazioni.semipulito?'on':''}" id="swSemi" role="switch" aria-checked="${S.impostazioni.semipulito}"><i></i></div>
+      </div>
+    </div>
+    <div class="azioni">
+      <button class="btn ghost small" id="bExp">Esporta dati</button>
+      <button class="btn ghost small" id="bImp">Importa dati</button>
+    </div>`;
+
+  el('bNuovoG').onclick = () => {
+    const n = prompt('Nome del giocatore');
+    if (n && n.trim()){ S.giocatori.push({ id:uid(), nome:n.trim() }); salva(); render(); }
+  };
+  el('vista').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    const id = b.dataset.del;
+    if (S.partita && S.partita.squadre.some(sq => sq.giocatori.includes(id))) return avviso('Sta giocando ora: non si tocca');
+    const g = S.giocatori.find(x => x.id === id);
+    if (confirm('Eliminare ' + g.nome + '? Le partite già archiviate restano.')){
+      S.giocatori = S.giocatori.filter(x => x.id !== id); salva(); render();
+    }
+  });
+  el('swSemi').onclick = () => { S.impostazioni.semipulito = !S.impostazioni.semipulito; salva(); render(); };
+  el('bExp').onclick = () => {
+    const b = new Blob([JSON.stringify(S,null,2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'burraco-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  el('bImp').onclick = () => {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json';
+    i.onchange = () => {
+      const f = i.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const d = JSON.parse(r.result);
+          if (!d.giocatori) throw 0;
+          S = Object.assign(JSON.parse(JSON.stringify(VUOTO)), d);
+          salva(); render(); avviso('Dati importati');
+        } catch(e){ avviso('File non leggibile'); }
+      };
+      r.readAsText(f);
+    };
+    i.click();
+  };
+}
+
+/* ---------- STORICO ---------- */
+function vistaStorico(){
+  el('vista').innerHTML = `
+    <div class="sez"><h2>Storico partite</h2><div class="rule"></div><div class="cnt">${S.archivio.length}</div></div>
+    ${S.archivio.length ? S.archivio.map((p,i) => {
+      const d = new Date(p.finita);
+      return `<div class="storico-item" data-p="${i}">
+        <div class="data">${d.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'})} · ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})} · ${p.mani.length} mani</div>
+        <div class="esito">
+          ${p.squadre.map((sq,j) => `
+            <div class="lato ${p.vincitore===j?'win':''}">
+              <div class="sq">${esc(sq.nome)}</div>
+              <div class="muted" style="font-size:11.5px">${esc(nomiSquadra(sq))}</div>
+              <div class="pt">${p.punteggi[j]}</div>
+            </div>`).join('<div class="vs">vs</div>')}
+        </div>
+      </div>`;
+    }).join('') : '<div class="card"><p class="muted" style="text-align:center;padding:18px 0">Ancora nessuna partita archiviata.</p></div>'}`;
+
+  el('vista').querySelectorAll('[data-p]').forEach(c => c.onclick = () => sheetDettaglio(+c.dataset.p));
+}
+
+function sheetDettaglio(i){
+  const p = S.archivio[i], n = p.squadre.length, col = `grid-template-columns:repeat(${n},1fr)`;
+  const colori = ['var(--rosso)','var(--blu)','var(--viola)'];
+  el('sheetBody').innerHTML = `
+    <h2>${p.squadre.map(s=>esc(s.nome)).join(' contro ')}</h2>
+    <p class="muted">${new Date(p.finita).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · obiettivo ${p.obiettivo}</p>
+    <div class="pad" style="margin-top:14px">
+      <div class="pad-head" style="${col}">
+        ${p.squadre.map((sq,j)=>`<div class="cell t${j}"><div class="team-name">${esc(sq.nome)}</div><div class="team-players">${esc(nomiSquadra(sq))}</div></div>`).join('')}
+      </div>
+      <div class="rows">
+        ${p.mani.map((mn,k)=>`<div class="row" style="${col}"><span class="mano-tag">${k+1}</span>
+          ${mn.map((m,j)=>`<div class="cell"><div class="n" style="color:${colori[j]}">${totaleMano(m)}</div><div class="brk">${esc(dettaglioMano(m))||'—'}</div></div>`).join('')}
+        </div>`).join('')}
+      </div>
+      <div class="tot" style="${col}">
+        ${p.punteggi.map((t,j)=>`<div class="cell"><div class="lab">${p.vincitore===j?'Vince':'Totale'}</div><div class="big" style="color:${colori[j]}">${t}</div></div>`).join('')}
+      </div>
+    </div>
+    <div class="azioni" style="margin-top:16px">
+      <button class="btn ghost" id="bChiudiS">Chiudi</button>
+      <button class="btn rosso" id="bDel">Elimina dallo storico</button>
+    </div>`;
+  el('bChiudiS').onclick = chiudiSheet;
+  el('bDel').onclick = () => { if (confirm('Eliminare questa partita dallo storico?')){ S.archivio.splice(i,1); salva(); chiudiSheet(); render(); } };
+  apriSheet();
+}
+
+/* ---------- foglio: apri/chiudi ---------- */
+function apriSheet(){ el('sheet').classList.add('on'); el('sheetBg').classList.add('on'); }
+function chiudiSheet(){ el('sheet').classList.remove('on'); el('sheetBg').classList.remove('on'); }
+el('sheetBg').onclick = chiudiSheet;
+
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; chiudiSheet(); render(); window.scrollTo(0,0); });
+
+/* ---------- avvio ---------- */
+(async function(){
+  const d = await Archivio.leggi();
+  if (d) S = Object.assign(JSON.parse(JSON.stringify(VUOTO)), d);
+  render();
+})();
+</script>
+</body>
+</html>
