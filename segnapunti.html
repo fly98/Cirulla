@@ -253,11 +253,75 @@ const Archivio = {
   }
 };
 
+/* =========================================================
+   Sincronia fra dispositivi — DO "Segna" sul worker di FlyGames.
+   Il codice del gruppo e' la credenziale: sta solo qui e sui telefoni.
+   Modello: documento unico con revisione. Chi scrive con una revisione
+   vecchia riceve 409 e si riallinea (l'ultima scrittura vince).
+   ========================================================= */
+const MP = 'https://fly-mp.f-castiglioni.workers.dev';
+let SYNC = { codice:null, rev:0, ts:0 };
+let statoSync = '';
+try { SYNC = Object.assign(SYNC, JSON.parse(localStorage.getItem('segnapunti_sync') || 'null') || {}); } catch(e){}
+const salvaSync = () => { try { localStorage.setItem('segnapunti_sync', JSON.stringify(SYNC)); } catch(e){} };
+const nuovoCodice = () => { const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<6;i++) c+=a[(Math.random()*a.length)|0]; return c; };
+
+function applicaRemoto(d){
+  S = Object.assign(JSON.parse(JSON.stringify(VUOTO)), d.dati);
+  SYNC.rev = d.rev; SYNC.ts = d.ts; salvaSync();
+  Archivio.scrivi(S);
+  render();
+}
+
+let attesaInvio = null;
+function programmaInvio(){
+  if (!SYNC.codice) return;
+  clearTimeout(attesaInvio);
+  attesaInvio = setTimeout(invia, 700);
+}
+
+async function invia(){
+  if (!SYNC.codice) return;
+  try {
+    const r = await fetch(MP + '/segna/' + SYNC.codice, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ rev:SYNC.rev, dati:S })
+    });
+    const d = await r.json();
+    if (r.status === 409){ applicaRemoto(d); avviso('Un altro dispositivo aveva segnato prima'); }
+    else if (r.ok){ SYNC.rev = d.rev; SYNC.ts = d.ts; salvaSync(); statoSync = 'ok'; aggiornaStatoSync(); }
+    else { statoSync = 'errore'; aggiornaStatoSync(); }
+  } catch(e){ statoSync = 'offline'; aggiornaStatoSync(); }
+}
+
+async function scarica(zitto){
+  if (!SYNC.codice) return;
+  try {
+    const d = await (await fetch(MP + '/segna/' + SYNC.codice, { cache:'no-store' })).json();
+    statoSync = 'ok';
+    if (d.rev > SYNC.rev && d.dati){ applicaRemoto(d); if (!zitto) avviso('Tabellone aggiornato'); }
+    else { SYNC.ts = d.ts || SYNC.ts; aggiornaStatoSync(); }
+  } catch(e){ statoSync = 'offline'; aggiornaStatoSync(); }
+}
+
+function descrizioneSync(){
+  if (!SYNC.codice) return 'Solo su questo dispositivo';
+  if (statoSync === 'offline') return 'Senza rete — riprovo appena torna';
+  if (statoSync === 'errore') return 'Il server ha risposto male';
+  if (!SYNC.ts) return 'In attesa del primo scambio';
+  const m = Math.round((Date.now() - SYNC.ts)/60000);
+  return m < 1 ? 'Allineato adesso' : m < 60 ? 'Allineato ' + m + ' min fa' : 'Allineato alle ' + new Date(SYNC.ts).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+}
+function aggiornaStatoSync(){ const n = el('statoSync'); if (n) n.textContent = descrizioneSync(); }
+
+setInterval(() => { if (document.visibilityState === 'visible') scarica(true); }, 12000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scarica(true); });
+
 const VUOTO = { impostazioni:{ obiettivo:2005, semipulito:true }, giocatori:[], partita:null, archivio:[] };
 let S = JSON.parse(JSON.stringify(VUOTO));
 let tab = 'partita';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-const salva = () => Archivio.scrivi(S);
+const salva = () => { Archivio.scrivi(S); programmaInvio(); };
 const el = id => document.getElementById(id);
 const esc = t => String(t==null?'':t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -577,6 +641,25 @@ function vistaGiocatori(){
         : '<p class="muted" style="text-align:center;padding:18px 0">Nessuno al tavolo. Aggiungi i soliti sospetti.</p>'}
     </div>
     <div class="azioni"><button class="btn oro" id="bNuovoG">Aggiungi giocatore</button></div>
+    <div class="sez"><h2>Sincronia</h2><div class="rule"></div></div>
+    <div class="card">
+      ${SYNC.codice ? `
+        <div class="riga">
+          <div>
+            <div class="muted" style="font-size:12px">Codice del gruppo</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:26px;letter-spacing:.22em;color:var(--oro)">${esc(SYNC.codice)}</div>
+            <div class="muted" id="statoSync" style="margin-top:2px">${esc(descrizioneSync())}</div>
+          </div>
+          <button class="btn ghost small" id="bEsci">Esci</button>
+        </div>
+        <p class="muted" style="margin:12px 0 0">Chi digita questo codice sull'altro telefono vede lo stesso tabellone. Segna una persona per volta: l'ultimo salvataggio ha ragione.</p>`
+      : `
+        <p class="muted" style="margin:0 0 12px">Giocatori, partita in corso e storico su piu' dispositivi. Un codice, niente account.</p>
+        <div class="azioni" style="margin:0">
+          <button class="btn oro" id="bCrea">Crea un gruppo</button>
+          <button class="btn ghost" id="bEntra">Entra con un codice</button>
+        </div>`}
+    </div>
     <div class="sez"><h2>Impostazioni</h2><div class="rule"></div></div>
     <div class="card">
       <div class="riga" style="padding:4px 0">
@@ -601,6 +684,36 @@ function vistaGiocatori(){
       S.giocatori = S.giocatori.filter(x => x.id !== id); salva(); render();
     }
   });
+  if (SYNC.codice){
+    el('bEsci').onclick = () => {
+      if (!confirm('Uscire dal gruppo? I dati restano su questo dispositivo ma smettono di allinearsi.')) return;
+      SYNC = { codice:null, rev:0, ts:0 }; salvaSync(); render(); avviso('Sincronia disattivata');
+    };
+  } else {
+    el('bCrea').onclick = async () => {
+      SYNC = { codice:nuovoCodice(), rev:0, ts:0 }; salvaSync();
+      await invia(); render();
+      avviso('Gruppo creato: ' + SYNC.codice);
+    };
+    el('bEntra').onclick = async () => {
+      const c = (prompt('Codice del gruppo') || '').trim().toUpperCase();
+      if (!c) return;
+      if (!/^[A-Z0-9]{4,12}$/.test(c)) return avviso('Codice non valido');
+      try {
+        const d = await (await fetch(MP + '/segna/' + c, { cache:'no-store' })).json();
+        if (d.dati){
+          if (!confirm('Questo gruppo ha gia\' un tabellone. I dati di questo dispositivo verranno sostituiti. Procedo?')) return;
+          SYNC = { codice:c, rev:0, ts:0 };
+          applicaRemoto(d);
+          avviso('Tabellone del gruppo caricato');
+        } else {
+          SYNC = { codice:c, rev:0, ts:0 }; salvaSync();
+          await invia(); render();
+          avviso('Gruppo ' + c + ' avviato');
+        }
+      } catch(e){ avviso('Niente rete: riprova'); }
+    };
+  }
   el('swSemi').onclick = () => { S.impostazioni.semipulito = !S.impostazioni.semipulito; salva(); render(); };
   el('bExp').onclick = () => {
     const b = new Blob([JSON.stringify(S,null,2)], { type:'application/json' });
@@ -690,6 +803,7 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.datas
   const d = await Archivio.leggi();
   if (d) S = Object.assign(JSON.parse(JSON.stringify(VUOTO)), d);
   render();
+  scarica(true);
 })();
 </script>
 </body>
