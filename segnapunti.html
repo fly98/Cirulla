@@ -425,7 +425,7 @@ function vistaPartita(){
 
   el('bMano').onclick = () => sheetMano(null);
   el('bAnnulla').onclick = () => { p.mani.pop(); salva(); render(); avviso('Ultima mano annullata'); };
-  el('bAbbandona').onclick = () => { if (confirm('Abbandonare la partita? Non finirà nello storico.')){ S.partita = null; salva(); render(); } };
+  el('bAbbandona').onclick = sheetTermina;
   if (finita) el('bChiudi').onclick = chiudiPartita;
   v.querySelectorAll('.row[data-mano]').forEach(r => r.onclick = () => sheetMano(+r.dataset.mano));
 }
@@ -447,16 +447,46 @@ function promemoria(){
     </table></details>`;
 }
 
-function chiudiPartita(){
+function chiudiPartita(vincitore){
   const p = S.partita, tot = totaliPartita(p);
   p.punteggi = tot;
-  p.vincitore = tot.indexOf(Math.max(...tot));
+  p.vincitore = (typeof vincitore === 'number') ? vincitore : tot.indexOf(Math.max(...tot));
+  p.resa = (typeof vincitore === 'number') && tot[p.vincitore] < p.obiettivo;
   p.finita = new Date().toISOString();
   S.archivio.unshift(p);
   S.partita = null;
   salva();
   tab = 'storico'; render();
   avviso('Partita archiviata');
+}
+
+/* ---------- foglio: termina partita ---------- */
+/* Serve quando l'altro molla a metà: la partita va nello storico con un
+   vincitore anche se nessuno ha raggiunto l'obiettivo. */
+function sheetTermina(){
+  const p = S.partita, tot = totaliPartita(p);
+  const colori = ['var(--rosso)','var(--blu)','var(--viola)'];
+  el('sheetBody').innerHTML = `
+    <h2>Termina la partita</h2>
+    <p class="muted">Chi la porta a casa? Finisce nello storico con i punti di adesso.</p>
+    <div style="margin-top:14px">
+      ${p.squadre.map((sq,j)=>`
+        <button class="btn" style="width:100%;margin-bottom:10px;background:transparent;border:1px solid ${colori[j]};color:${colori[j]}" data-v="${j}">
+          Vince ${esc(sq.nome)} · ${tot[j]}
+        </button>`).join('')}
+    </div>
+    <div class="azioni" style="margin-top:6px">
+      <button class="btn ghost" id="bAnnullaS">Continua a giocare</button>
+      <button class="btn rosso" id="bButta">Butta via</button>
+    </div>
+    <p class="muted" style="margin-top:10px;font-size:12.5px">"Butta via" cancella la partita in corso senza registrarla.</p>`;
+  el('sheetBody').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { chiudiSheet(); chiudiPartita(+b.dataset.v); });
+  el('bAnnullaS').onclick = chiudiSheet;
+  el('bButta').onclick = () => {
+    if (!confirm('Cancellare la partita? Non finirà nello storico.')) return;
+    S.partita = null; salva(); chiudiSheet(); render(); avviso('Partita cancellata');
+  };
+  apriSheet();
 }
 
 /* ---------- foglio: nuova partita ---------- */
@@ -788,7 +818,7 @@ function vistaStorico(){
     ${S.archivio.length ? S.archivio.map((p,i) => {
       const d = new Date(p.finita);
       return `<div class="storico-item" data-p="${i}">
-        <div class="data">${d.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'})} · ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})} · ${p.mani.length} mani</div>
+        <div class="data">${d.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'})} · ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})} · ${p.mani.length} mani${p.resa ? ' · per resa' : ''}</div>
         <div class="esito">
           ${p.squadre.map((sq,j) => `
             <div class="lato ${p.vincitore===j?'win':''}">
@@ -808,7 +838,7 @@ function sheetDettaglio(i){
   const colori = ['var(--rosso)','var(--blu)','var(--viola)'];
   el('sheetBody').innerHTML = `
     <h2>${p.squadre.map(s=>esc(s.nome)).join(' contro ')}</h2>
-    <p class="muted">${new Date(p.finita).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · obiettivo ${p.obiettivo}</p>
+    <p class="muted">${new Date(p.finita).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · obiettivo ${p.obiettivo}${p.resa ? ' · chiusa per resa' : ''}</p>
     <div class="pad" style="margin-top:14px">
       <div class="pad-head" style="${col}">
         ${p.squadre.map((sq,j)=>`<div class="cell t${j}"><div class="team-name">${esc(sq.nome)}</div><div class="team-players">${esc(nomiSquadra(sq))}</div></div>`).join('')}
