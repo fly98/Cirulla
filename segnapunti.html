@@ -436,9 +436,9 @@ function promemoria(){
       <tr><td>Burraco semipulito</td><td>150</td></tr>
       <tr><td>Burraco sporco</td><td>100</td></tr>
       <tr><td>Chiusura</td><td>100</td></tr>
-      <tr><td>Pozzetto non preso</td><td>−100</td></tr>
-      <tr><td>Carte rimaste in mano</td><td>a scalare</td></tr>
-      <tr><td>Jolly</td><td>30</td></tr>
+      <tr><td>Pozzetto mai preso</td><td>−100</td></tr>
+      <tr><td>Carte in mano (anche del pozzetto)</td><td>a scalare</td></tr>
+            <tr><td>Jolly</td><td>30</td></tr>
       <tr><td>Pinella (2)</td><td>20</td></tr>
       <tr><td>Asso</td><td>15</td></tr>
       <tr><td>Da 8 a K</td><td>10</td></tr>
@@ -630,7 +630,7 @@ function sheetMano(indice){
         ${stp('sporco','Burraco sporco','100 ciascuno')}
         ${haChiuso ? '' : `
         <div class="step">
-          <div class="t">Pozzetto non preso<small>−100</small></div>
+          <div class="t">Non ha mai preso il pozzetto<small>−100 · se l'ha preso resta spento, le carte vanno sotto</small></div>
           <div class="sw ${m.pozzetto?'on':''}" data-sw="${j}:pozzetto" role="switch" aria-checked="${m.pozzetto}"><i></i></div>
         </div>
         <div class="step">
