@@ -331,7 +331,7 @@ function avviso(t){ const n = el('toast'); n.textContent = t; n.classList.add('o
    Punteggi
    ========================================================= */
 const B_PULITO = 200, B_SEMI = 150, B_SPORCO = 100, CHIUSURA = 100, POZZETTO = 100;
-const manoVuota = () => ({ carte:0, pulito:0, semi:0, sporco:0, chiusura:false, pozzetto:false, mano:0 });
+const manoVuota = () => ({ carte:0, pulito:0, semi:0, sporco:0, chiusura:false, pozzetto:false, mano:0, matte:0 });
 
 function totaleMano(m){
   return (+m.carte||0)
@@ -349,7 +349,8 @@ function dettaglioMano(m){
   if (m.chiusura) p.push('+100 ch.');
   if (m.pozzetto) p.push('−100 poz.');
   if (+m.mano)  p.push('−'+m.mano);
-  return p.join('  ');
+  const s = p.join('  ');
+  return (+m.matte) ? (s ? s + '   🃏' + m.matte : '🃏' + m.matte) : s;
 }
 const totaliPartita = p => p.squadre.map((_,i) => p.mani.reduce((s,mn)=> s + totaleMano(mn[i]), 0));
 const nomiSquadra = sq => sq.giocatori.map(id => (S.giocatori.find(g=>g.id===id)||{nome:'?'}).nome).join(' · ');
@@ -637,6 +638,7 @@ function sheetMano(indice){
           <div class="t">Carte rimaste in mano<small>si sottraggono</small></div>
           <input type="number" inputmode="numeric" data-num="${j}:mano" value="${m.mano||''}" placeholder="0">
         </div>`}
+        ${stp('matte','Pinelle e jolly','facoltativo · non fa punti, serve all\'indice di culo')}
       </div>`;
   }
 
@@ -646,16 +648,18 @@ function sheetMano(indice){
 
 /* ---------- GIOCATORI ---------- */
 function statistiche(id){
-  let partite = 0, vinte = 0, punti = 0, mani = 0, migliore = 0;
+  let partite = 0, vinte = 0, punti = 0, mani = 0, migliore = 0, matte = 0;
   S.archivio.forEach(p => {
     const j = p.squadre.findIndex(sq => sq.giocatori.includes(id));
     if (j < 0) return;
     partite++;
     if (p.vincitore === j) vinte++;
     punti += p.punteggi[j];
-    p.mani.forEach(mn => { mani++; const t = totaleMano(mn[j]); if (t > migliore) migliore = t; });
+    p.mani.forEach(mn => { mani++; matte += (+mn[j].matte||0); const t = totaleMano(mn[j]); if (t > migliore) migliore = t; });
   });
-  return { partite, vinte, punti, mani, migliore, media: mani ? Math.round(punti/mani) : 0 };
+  return { partite, vinte, punti, mani, migliore, matte,
+           media: mani ? Math.round(punti/mani) : 0,
+           culo: mani ? (matte/mani) : 0 };
 }
 
 function vistaGiocatori(){
@@ -669,7 +673,7 @@ function vistaGiocatori(){
           <div class="avatar">${esc(g.nome.trim().charAt(0).toUpperCase())}</div>
           <div class="info">
             <div class="nome">${esc(g.nome)}</div>
-            <div class="meta">${s.partite} partite · ${s.media} pt/mano · record ${s.migliore}</div>
+            <div class="meta">${s.partite} partite · ${s.media} pt/mano · record ${s.migliore}${s.matte ? ' · culo ' + s.culo.toFixed(1).replace('.',',') + ' 🃏' : ''}</div>
           </div>
           <span class="pill ${s.vinte?'win':''}">${s.vinte} vinte</span>
           <button class="x" data-del="${g.id}" aria-label="Elimina ${esc(g.nome)}">✕</button>
