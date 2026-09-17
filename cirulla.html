@@ -134,6 +134,30 @@ h1 small{display:block;font-size:9px;letter-spacing:1px;color:#cfe8d8;font-weigh
 .scelte-barra{display:flex;gap:10px;margin-top:2px}
 .scelte-barra .btn{flex:1}
 
+.zona{position:relative}
+.scope-badge{
+  position:absolute; top:-4px; right:2px;
+  background:linear-gradient(160deg,#2f7a4a,#1c5233);
+  border:2px solid var(--oro); border-radius:14px;
+  padding:5px 12px; font-size:20px; font-weight:800; color:#fff;
+  box-shadow:0 4px 10px rgba(0,0,0,.45);
+  display:flex; align-items:center; gap:5px;
+  transition:transform .15s;
+}
+.scope-badge span{font-size:24px; color:var(--oro); font-variant-numeric:tabular-nums}
+.scope-badge-tu{top:auto; bottom:-4px}
+.scope-badge.bump{animation:scopeBump .55s ease}
+@keyframes scopeBump{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.35) rotate(-3deg)}
+  60%{transform:scale(.96) rotate(2deg)}
+  100%{transform:scale(1)}
+}
+@media (max-width: 540px){
+  .scope-badge{padding:3px 9px;font-size:15px;border-radius:11px;border-width:1.5px}
+  .scope-badge span{font-size:18px}
+}
+
 .footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px 12px;font-size:11px;color:#bfe0cd}
 
 .bussata{
@@ -259,6 +283,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 <div class="zona">
   <div class="etichetta"><span id="cpuNome">CPU</span> · <span id="cpuInfo">—</span></div>
   <div class="cpu-hand" id="cpuHand"></div>
+  <div class="scope-badge scope-badge-cpu" id="scopeBadgeCpu">🧹 <span id="scopeCpuNum">0</span></div>
 </div>
 
 <div class="zona">
@@ -275,6 +300,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 <div class="zona">
   <div class="etichetta">La tua mano · <span id="tuInfo">—</span></div>
   <div class="mano" id="mano"></div>
+  <div class="scope-badge scope-badge-tu" id="scopeBadgeTu">🧹 <span id="scopeTuNum">0</span></div>
 </div>
 
 <div class="footer">
@@ -490,6 +516,8 @@ function mostraAccusoPendente(){
     await animaAccuso(m);
     ST.d.prese[m].push(...ST.d.tavolo.splice(0,4));
     ST.d.scope[m] += n;
+    if(!ST.d.accusoScope) ST.d.accusoScope = {tu:0, cpu:0};
+    ST.d.accusoScope[m] += n;
     ST.d.ultimaPresa = m;
     ST.d.accusoPendente = null;
     addFortuna(m==='tu'?(n+0.5):-(n+0.5), `Accuso del mazziere (${sommaTxt} in tavola): ${n} scop${n>1?'e':'a'} + 4 carte ${m==='tu'?'a te':aAvv()} (${m==='tu'?'+':'-'}${n+0.5})`);
@@ -1032,7 +1060,8 @@ function fineSmazzata(){
     ST.smazzate++;
   }
 
-  const scopeNorm = {tu: d.scope.tu - d.bussate.tu, cpu: d.scope.cpu - d.bussate.cpu};
+  const ac = d.accusoScope || {tu:0, cpu:0};
+  const scopeNorm = {tu: d.scope.tu - d.bussate.tu - ac.tu, cpu: d.scope.cpu - d.bussate.cpu - ac.cpu};
   const rigaEvid = (nome, vTu, vCpu) =>
     `<tr class="evid"><td>${nome}</td><td class="n">${vTu||'—'}</td><td class="n">${vCpu||'—'}</td></tr>`;
 
@@ -1043,6 +1072,7 @@ function fineSmazzata(){
      ${righe.map(r=>`<tr><td>${r.nome}</td><td class="n">${r.tu||'—'}</td><td class="n">${r.cpu||'—'}</td></tr>`).join('')}
      <tr><td>Scope</td><td class="n">${scopeNorm.tu||'—'}</td><td class="n">${scopeNorm.cpu||'—'}</td></tr>
      ${(d.bussate.tu||d.bussate.cpu) ? rigaEvid(`✊ Bussate${d.bussateTxt.tu.length?' ('+d.bussateTxt.tu.join('+')+')':''}${d.bussateTxt.cpu.length?' ['+(mpAttivo()?(MP.nomeAvversario||'Avv.'):'CPU')+': '+d.bussateTxt.cpu.join('+')+']':''}`, d.bussate.tu, d.bussate.cpu) : ''}
+     ${(ac.tu||ac.cpu) ? rigaEvid('🤝 Accuso del mazziere', ac.tu, ac.cpu) : ''}
      ${(a.grande||b.grande) ? rigaEvid('👑 GRANDE (F+C+R denari)', a.grande, b.grande) : ''}
      ${(a.piccola||b.piccola) ? rigaEvid('💎 PICCOLA (denari da Asso)', a.piccola, b.piccola) : ''}
      <tr class="tot"><td>Totale smazzata</td><td class="n">${pt.tu}</td><td class="n">${pt.cpu}</td></tr>
@@ -1135,7 +1165,17 @@ function render(){
   document.getElementById('contaMazzo').textContent = d.mazzo.length;
   document.getElementById('mazzetto').classList.toggle('vuoto', d.mazzo.length===0);
   document.getElementById('statoPrese').textContent =
-    `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length} — Scope: ${d.scope.tu}–${d.scope.cpu}`;
+    `Prese: tu ${d.prese.tu.length} · cpu ${d.prese.cpu.length}`;
+
+  // badge scope grandi, uno per giocatore: saltano quando il numero cambia
+  const bTu = document.getElementById('scopeBadgeTu'), bCpu = document.getElementById('scopeBadgeCpu');
+  const numTu = document.getElementById('scopeTuNum'), numCpu = document.getElementById('scopeCpuNum');
+  if(bTu && numTu){
+    if(+numTu.textContent !== d.scope.tu){ numTu.textContent = d.scope.tu; bTu.classList.remove('bump'); void bTu.offsetWidth; bTu.classList.add('bump'); }
+  }
+  if(bCpu && numCpu){
+    if(+numCpu.textContent !== d.scope.cpu){ numCpu.textContent = d.scope.cpu; bCpu.classList.remove('bump'); void bCpu.offsetWidth; bCpu.classList.add('bump'); }
+  }
   const nomeA = mpAttivo() ? (MP.nomeAvversario || 'Avversario') : 'CPU';
   document.getElementById('cpuNome').textContent = nomeA;
   document.getElementById('chipCpuLbl').textContent = mpAttivo() ? nomeA.toUpperCase().slice(0,8) : 'CPU';
@@ -1534,7 +1574,7 @@ function mpSwap(st){
   s.mazziere = s.mazziere==='tu' ? 'cpu' : 'tu';
   if(s.d){
     const d=s.d;
-    sw(d.mani); sw(d.prese); sw(d.scope); sw(d.bussate); sw(d.bussateTxt); sw(d.daDichiarare);
+    sw(d.mani); sw(d.prese); sw(d.scope); sw(d.bussate); sw(d.bussateTxt); sw(d.daDichiarare); sw(d.accusoScope);
     d.turno = d.turno==='tu'?'cpu':'tu';
     if(d.ultimaPresa) d.ultimaPresa = d.ultimaPresa==='tu'?'cpu':'tu';
     d.scelta = null;
