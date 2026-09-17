@@ -825,7 +825,7 @@ async function esegui(p, carta, presa){
     txt += ` e prend${p==='tu'?'i':'e'} ${presa.cards.map(nomeCarta).join(' + ')} <span class="ok">(${presa.tipo})</span>`;
 
     const ultimaGiocata = d.mazzo.length===0 && d.mani.tu.length===0 && d.mani.cpu.length===0;
-    const scopaValida = valDi(carta)!==1 || presa.tipo==='uguale'; // asso piglia tutto non fa scopa; asso su asso sì
+    const scopaValida = true; // qualsiasi presa che svuota il tavolo è scopa, asso piglia tutto incluso
     if(d.tavolo.length===0 && !ultimaGiocata && scopaValida){
       d.scope[p]++;
       txt += ` <span class="ok">SCOPA!</span>`;
@@ -919,7 +919,7 @@ function cpuMedio(){
       sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
       const restano = d.tavolo.length - o.cards.length;
       const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
-      if(restano===0 && !ultima && (valDi(c)!==1 || o.tipo==='uguale')) sc += 9;   // scopa (vale anche asso su asso)
+      if(restano===0 && !ultima) sc += 9;   // scopa (vale anche per l'asso piglia tutto)
       if(valDi(c)===1 && restano===0) sc += d.tavolo.length*0.8; // asso piglia tutto
       if(!best || sc>best.sc) best={sc, carta:c, presa:o};
     }
@@ -995,7 +995,7 @@ function cpuDifficile(){
         sc += ((dopoPG.grande-primaPG.grande) + (dopoPG.piccola-primaPG.piccola)) * 2.5;
         const restano = d.tavolo.length - o.cards.length;
         const ultima = d.mazzo.length===0 && d.mani.tu.length===0 && mano.length===1;
-        if(restano===0 && !ultima && (valDi(c)!==1 || o.tipo==='uguale')) sc += 9;
+        if(restano===0 && !ultima) sc += 9;   // scopa (vale anche per l'asso piglia tutto)
         if(valDi(c)===1 && restano===0) sc += d.tavolo.length*0.8;
         // guarda avanti: quanto è pericoloso il tavolo che lascio?
         const ids = new Set(o.cards.map(x=>x.id));
@@ -1268,7 +1268,7 @@ function migliorePresa(carta, opts){
   let best=null;
   for(const o of opts){
     let sc = valutaPresa([carta, ...o.cards]);
-    if(o.cards.length===ST.d.tavolo.length && valDi(carta)!==1) sc += 9; // preferisci la scopa
+    if(o.cards.length===ST.d.tavolo.length) sc += 9; // preferisci la scopa (anche con l'asso piglia tutto)
     if(!best || sc>best.sc) best={sc, o};
   }
   return best.o;
@@ -1368,7 +1368,7 @@ const REGOLE = `
 <li>3 carte a testa + 4 in tavola. Se in tavola escono <b>2 assi</b>, si rimescola.</li>
 <li><b>Accuso del mazziere</b>: se le 4 carte in tavola sommano 15 le prende e fa 1 scopa; se sommano 30, 2 scope.</li>
 <li><b>Prese</b>: carta uguale · somma di più carte pari alla tua · <b>presa a 15</b> (la tua + carte in tavola = 15).</li>
-<li><b>L'asso piglia tutto</b> il tavolo (senza fare scopa). Ma se in tavola c'è un asso, il tuo asso prende <b>solo quello</b> — e se era l'unica carta in tavola, è scopa.</li>
+<li><b>L'asso piglia tutto</b> il tavolo — ed <b>è scopa</b> (svuota il tavolo come qualsiasi altra presa). Se invece in tavola c'è già un asso, il tuo asso prende <b>solo quello</b>, e se era l'unica carta è scopa comunque.</li>
 <li>Se puoi prendere <b>devi</b> prendere; se ci sono più modi, scegli tu.</li>
 <li><b>Scopa</b>: svuoti il tavolo (non vale sull'ultima carta dell'ultima mano).</li>
 <li><b>Bussate (accusi)</b>: si dichiarano al proprio turno, prima di calare. <i>Cirulla / barsega</i> — somma delle 3 carte in mano ≤ 9 → <b>3 scope</b>. <i>Decino</i> — tris in mano → <b>10 scope</b>. (Il gioco bussa per te automaticamente al tuo turno.)</li>
