@@ -245,6 +245,30 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
     body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
   }
 }
+
+/* ===== Schermi grandi (iPhone Duo aperto, iPad) =====
+   Il tavolo resta sempre centrato nello spazio tra avversario e mano,
+   in verticale e in orizzontale; carte più piccole che nel desktop classico. */
+@media (min-width: 600px) and (min-height: 600px) {
+  body{height:100vh;overflow:hidden}
+  .zona:nth-of-type(1){flex:0 0 auto;margin:4px 0}
+  .zona:nth-of-type(2){
+    flex:1 1 auto;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;min-height:0;margin:4px 0;
+  }
+  .tavolo{min-height:0}
+  .msg{flex:0 0 auto}
+  .scelte{flex:0 0 auto}
+  .zona:nth-of-type(3){flex:0 0 auto;margin:4px 0}
+  .mano{flex-wrap:wrap;min-height:0;padding:4px 0}
+  .footer{flex:0 0 auto}
+
+  .carta{width:clamp(70px,12vw,130px);height:auto;aspect-ratio:.59}
+  .carta.small{width:clamp(56px,9vw,100px);height:auto;aspect-ratio:.59}
+  .retro{width:clamp(50px,7vw,90px);height:auto;aspect-ratio:.59}
+  .cpu-hand{min-height:0}
+}
+
 </style>
 </head>
 <body>
