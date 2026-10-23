@@ -205,8 +205,12 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .zona{margin:2px 0}
   .etichetta{font-size:8px;margin:1px 3px}
 
-  .cpu-hand{gap:5px;min-height:124px}
-  .retro{width:70px;height:118px;border-radius:7px;border-width:1.5px}
+  .cpu-hand{gap:0;min-height:96px}
+  .retro{width:56px;height:95px;border-radius:6px;border-width:1.5px}
+  /* le carte coperte dell'avversario servono solo da indicatore: le
+     sovrappongo (si vede solo mezza carta a testa) per guadagnare spazio */
+  .cpu-hand .retro{margin-left:-24px}
+  .cpu-hand .retro:first-child{margin-left:0}
 
   .tavolo{gap:4px;min-height:168px;padding:8px 6px 8px 52px;border-radius:10px}
   .mazzetto{left:6px;width:36px;height:61px}
@@ -214,8 +218,8 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .mano{gap:8px;min-height:208px;padding:3px 0 1px}
 
   /* larghezza fluida: la mano tiene 3 carte, il tavolo esattamente 4 per riga (5+ vanno a capo) */
-  .carta{width:calc((100vw - 44px)/3);max-width:130px;height:auto;aspect-ratio:0.59;border-radius:8px}
-  .carta.small{width:calc((100vw - 36px)/4);max-width:106px;height:auto;aspect-ratio:0.59;border-radius:7px}
+  .carta{width:calc((100vw - 44px)/3);max-width:114px;height:auto;aspect-ratio:0.59;border-radius:8px}
+  .carta.small{width:calc((100vw - 36px)/4);max-width:92px;height:auto;aspect-ratio:0.59;border-radius:7px}
   .settebello::after{top:3px;right:5px;font-size:14px}
 
   .msg{min-height:26px;font-size:11px;padding:5px 7px;margin:2px 0}
