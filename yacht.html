@@ -364,33 +364,6 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
     body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
   }
 }
-
-/* ===== Landscape ampio (iPhone Duo aperto, iPad, tablet) =====
-   Due colonne: a sinistra dadi e azioni, a destra il tabellone punteggi */
-@media (orientation: landscape) and (min-width: 760px) {
-  body{
-    display:grid;
-    grid-template-columns: minmax(0,1fr) minmax(280px,440px);
-    grid-template-rows: auto auto 1fr auto;
-    grid-template-areas:
-      "header header"
-      "dadi   score"
-      "msg    score"
-      "footer score";
-    column-gap: 16px;
-    max-width: 1100px;
-    margin: 0 auto;
-    height: 100vh;
-    padding-top: calc(env(safe-area-inset-top) + 6px);
-    overflow: hidden;
-  }
-  header{grid-area:header}
-  .zona-dadi{grid-area:dadi;align-self:center;margin:0}
-  .msg{grid-area:msg}
-  .zona.scorecard{grid-area:score;align-self:stretch;overflow:auto;margin:0}
-  .footer{grid-area:footer;align-self:end}
-}
-
 </style>
 </head>
 <body>

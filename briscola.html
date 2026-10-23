@@ -175,47 +175,6 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
     body{padding-top:max(calc(env(safe-area-inset-top) + 6px), 54px)}
   }
 }
-
-/* ===== Landscape ampio (iPhone Duo aperto, iPad, tablet) =====
-   Due colonne: a sinistra avversario+tavolo+messaggi, a destra la mano del giocatore */
-@media (orientation: landscape) and (min-width: 760px) {
-  body{
-    display:grid;
-    grid-template-columns: minmax(0,1fr) minmax(250px,380px);
-    grid-template-rows: auto auto auto auto auto 1fr;
-    grid-template-areas:
-      "header header"
-      "cpu    mano"
-      "tavolo mano"
-      "msg    mano"
-      "scelte mano"
-      "footer mano";
-    column-gap: 16px;
-    max-width: 1180px;
-    margin: 0 auto;
-    height: 100vh;
-    padding-top: calc(env(safe-area-inset-top) + 6px);
-    overflow: hidden;
-  }
-  header{grid-area:header}
-  .zona:nth-of-type(1){grid-area:cpu;margin:0}
-  .zona:nth-of-type(2){grid-area:tavolo;margin:0}
-  .msg{grid-area:msg}
-  .scelte{grid-area:scelte;max-height:18vh;overflow:auto}
-  .zona:nth-of-type(3){grid-area:mano;align-self:stretch;display:flex;flex-direction:column;justify-content:center;margin:0}
-  .zona:nth-of-type(3) .mano{flex-wrap:wrap;min-height:0;align-items:center;gap:10px;padding:0}
-  .footer{grid-area:footer;align-self:end}
-
-  .tavolo{min-height:0;padding-left:70px}
-  .mazzetto{left:10px;width:48px;height:81px}
-  .cpu-hand{min-height:0}
-  .retro{width:min(8vw,70px);height:auto;aspect-ratio:.59}
-
-  .carta{width:min(15vw,130px);height:auto;aspect-ratio:.59}
-  .carta.small{width:min(11vw,96px);height:auto;aspect-ratio:.59}
-  .zona:nth-of-type(3) .carta{width:min(26vw,118px);height:auto;aspect-ratio:.59}
-}
-
 </style>
 </head>
 <body>
