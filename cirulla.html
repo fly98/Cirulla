@@ -250,10 +250,9 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
    Il tavolo resta sempre centrato nello spazio tra avversario e mano,
    in verticale e in orizzontale; carte più piccole che nel desktop classico. */
 @media (min-width: 600px) and (min-height: 600px) {
-  /* dvh invece di vh: su iOS Safari vh resta "congelato" al valore di
-     quando la pagina si è aperta e non si ricalcola dopo una rotazione;
-     dvh segue sempre l'altezza reale dello schermo in quel momento */
-  body{height:100dvh;overflow:hidden}
+  /* altezza reale calcolata in JS (vedi script sotto): su questo device
+     dvh non si ricalcola in modo affidabile dopo una rotazione */
+  body{height:calc(var(--vh, 1dvh) * 100);overflow:hidden}
   .zona:nth-of-type(1){flex:0 0 auto;min-height:0;margin:4px 0}
   .zona:nth-of-type(2){
     flex:1 1 auto;display:flex;flex-direction:column;
@@ -272,15 +271,36 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
      (poca altezza) restano più contenute — niente più spazio vuoto sprecato.
      Tetto più basso per tavolo/mano: se il tavolo si riempie di carte le
      righe aggiuntive vanno in scroll invece di sforare sopra/sotto. */
-  .cpu-hand .retro{width:clamp(40px,5dvh,64px);height:auto;aspect-ratio:.59}
+  .cpu-hand .retro{width:clamp(40px,calc(var(--vh, 1dvh) * 5),64px);height:auto;aspect-ratio:.59}
   .cpu-hand{min-height:0}
-  .tavolo .carta{height:clamp(120px,20dvh,220px);width:auto;aspect-ratio:.59}
-  .mano .carta{height:clamp(110px,17dvh,190px);width:auto;aspect-ratio:.59}
+  .tavolo .carta{height:clamp(120px,calc(var(--vh, 1dvh) * 20),220px);width:auto;aspect-ratio:.59}
+  .mano .carta{height:clamp(110px,calc(var(--vh, 1dvh) * 17),190px);width:auto;aspect-ratio:.59}
 }
 
 </style>
 </head>
 <body>
+<script>
+// Altezza reale dello schermo in --vh (1% dell'altezza), ricalcolata ad
+// ogni cambio dimensione/orientamento: su iPhone Duo le unità dvh/svh/lvh
+// non si sono dimostrate affidabili dopo una rotazione, questo è il modo
+// robusto indipendente dal motore di rendering.
+(function(){
+  function setVh(){
+    document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+  }
+  setVh();
+  window.addEventListener('resize', setVh);
+  window.addEventListener('orientationchange', function(){
+    setVh();
+    setTimeout(setVh, 60);
+    setTimeout(setVh, 300);
+  });
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', setVh);
+  }
+})();
+</script>
 <script>
 // Pulizia una tantum: azzera storici e partite in sospeso accumulati
 // prima dell'introduzione della soglia di salvataggio.
