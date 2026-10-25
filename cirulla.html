@@ -283,7 +283,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
    Il riquadro ha un'altezza costante (non cresce con le carte), quindi il
    mazzo a sinistra resta fermo. Quando le carte aumentano si rimpiccioliscono
    per restare tutte su una riga invece di andare a capo. */
-.tavolo{flex-wrap:nowrap;align-items:center;min-height:0;height:264px;overflow:visible}
+.tavolo{flex-wrap:nowrap;align-items:center;min-height:0;height:264px;overflow:visible;width:100%}
 .tavolo .carta{flex:0 1 auto;min-width:0;width:140px;height:auto;aspect-ratio:.59}
 @media (max-width: 540px){
   .tavolo{height:176px}
@@ -358,7 +358,7 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
 
 <div class="zona">
   <div class="etichetta">Tavolo</div>
-  <div style="position:relative">
+  <div class="tavolo-wrap" style="position:relative;width:100%">
     <div class="mazzetto" id="mazzetto"><div class="retro"></div><div class="retro"></div><div class="conta" id="contaMazzo">30</div></div>
     <div class="tavolo" id="tavolo"></div>
   </div>
