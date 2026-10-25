@@ -263,7 +263,6 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
     align-items:center;justify-content:center;
     min-height:0;overflow:hidden;margin:4px 0;
   }
-  .tavolo{min-height:0;max-height:100%;overflow:auto}
   .msg{flex:0 0 auto}
   .scelte{flex:0 0 auto}
   .zona:nth-of-type(3){flex:0 0 auto;min-height:0;margin:4px 0}
@@ -277,8 +276,22 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
      righe aggiuntive vanno in scroll invece di sforare sopra/sotto. */
   .cpu-hand .retro{width:clamp(40px,calc(var(--vh, 1dvh) * 5),64px);height:auto;aspect-ratio:.59}
   .cpu-hand{min-height:0}
-  .tavolo .carta{height:clamp(120px,calc(var(--vh, 1dvh) * 20),220px);width:auto;aspect-ratio:.59}
   .mano .carta{height:clamp(110px,calc(var(--vh, 1dvh) * 17),190px);width:auto;aspect-ratio:.59}
+}
+
+/* ===== Tavolo a riquadro fisso, carte sempre su un'unica riga =====
+   Il riquadro ha un'altezza costante (non cresce con le carte), quindi il
+   mazzo a sinistra resta fermo. Quando le carte aumentano si rimpiccioliscono
+   per restare tutte su una riga invece di andare a capo. */
+.tavolo{flex-wrap:nowrap;align-items:center;min-height:0;height:264px;overflow:visible}
+.tavolo .carta{flex:0 1 auto;min-width:0;width:140px;height:auto;aspect-ratio:.59}
+@media (max-width: 540px){
+  .tavolo{height:176px}
+  .tavolo .carta{width:calc((100vw - 36px)/4);max-width:92px}
+}
+@media (min-width: 600px) and (min-height: 600px){
+  .tavolo{height:calc(clamp(120px,calc(var(--vh, 1dvh) * 20),220px) + 24px);max-height:none}
+  .tavolo .carta{width:calc(clamp(120px,calc(var(--vh, 1dvh) * 20),220px) * .59);max-width:none}
 }
 
 </style>
