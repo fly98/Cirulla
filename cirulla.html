@@ -294,6 +294,20 @@ tr.evid td{color:var(--oro);font-weight:700;background:rgba(232,194,102,.10)}
   .tavolo .carta{width:calc(clamp(120px,calc(var(--vh, 1dvh) * 20),220px) * .59);max-width:none}
 }
 
+/* ===== Posizione del tavolo stabile =====
+   Le zone sopra e sotto il tavolo hanno altezze fisse, così il riquadro non
+   si sposta quando cambiano carte in mano, messaggi o opzioni di presa. */
+.msg{height:44px;min-height:0;overflow:hidden}
+@media (min-width: 600px) and (min-height: 600px){
+  .cpu-hand{height:calc(clamp(40px,calc(var(--vh, 1dvh) * 5),64px) / .59);min-height:0;align-items:center}
+  .mano{height:calc(clamp(110px,calc(var(--vh, 1dvh) * 17),190px) + 14px);min-height:0;align-items:center;flex-wrap:nowrap}
+  /* le opzioni di presa non spingono più il layout: si aprono sopra il messaggio */
+  .scelte{height:0;margin:0;justify-content:flex-end;overflow:visible;position:relative;z-index:30}
+  .scelte > *{flex:0 0 auto}
+  .scelte .scelta{background:#124a2e}
+  .scelte-barra{background:#0d3a24;padding:4px;border-radius:10px}
+}
+
 </style>
 </head>
 <body>
